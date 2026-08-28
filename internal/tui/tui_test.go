@@ -41,11 +41,22 @@ func TestRenderUserBlock(t *testing.T) {
 	}
 }
 
+func TestSuggestRendersModel(t *testing.T) {
+	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
+	m.width, m.height = 80, 24
+	m.input.SetValue("/mo")
+	m.syncSuggest()
+	out := m.View().Content
+	if !strings.Contains(out, "/model") {
+		t.Fatalf("missing /model suggestion\n%s", out)
+	}
+}
+
 func TestViewHasChrome(t *testing.T) {
 	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
 	m.width, m.height = 80, 24
 	out := m.View().Content
-	for _, want := range []string{"goppi", "UPSTAGE SOLAR", "enter"} {
+	for _, want := range []string{"goppi", "UPSTAGE SOLAR", "enter", "tab"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q\n%s", want, out)
 		}

@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/sspzoa/goppi/internal/complete"
 	"github.com/sspzoa/goppi/internal/session"
 	"github.com/sspzoa/goppi/internal/upstage"
 )
@@ -113,6 +114,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.overlay == overlayNone && !m.busy {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
+		m.syncSuggest()
 		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
@@ -163,16 +165,38 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.overlay = overlayHelp
 			return m, nil
 		}
+	case "tab":
+		if !m.busy {
+			m.applySuggest(1)
+			return m, nil
+		}
+	case "shift+tab":
+		if !m.busy {
+			m.applySuggest(-1)
+			return m, nil
+		}
 	case "enter":
 		if m.busy {
 			return m, nil
 		}
+		if len(m.suggest) > 0 && !complete.Ready(m.input.Value()) {
+			m.applySuggest(0)
+			return m, nil
+		}
 		return m.submit()
 	case "up":
+		if len(m.suggest) > 0 {
+			m.moveSuggest(-1)
+			return m, nil
+		}
 		if m.input.LineCount() <= 1 && m.input.Line() == 0 {
 			return m, m.histPrev()
 		}
 	case "down":
+		if len(m.suggest) > 0 {
+			m.moveSuggest(1)
+			return m, nil
+		}
 		if m.input.LineCount() <= 1 {
 			return m, m.histNext()
 		}
@@ -181,6 +205,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if !m.busy {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
+		m.syncSuggest()
 		return m, cmd
 	}
 	return m, nil
@@ -260,6 +285,50 @@ func (m *model) applyPick() {
 	_ = m.input.Focus()
 }
 
+func (m *model) syncSuggest() {
+	next := complete.Query(m.input.Value())
+	if !sameSuggest(m.suggest, next) {
+		m.suggestIdx = 0
+	}
+	if m.suggestIdx >= len(next) {
+		m.suggestIdx = 0
+	}
+	m.suggest = next
+}
+
+func sameSuggest(a, b []complete.Item) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Name != b[i].Name {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *model) moveSuggest(dir int) {
+	if len(m.suggest) == 0 {
+		return
+	}
+	m.suggestIdx = (m.suggestIdx + dir + len(m.suggest)) % len(m.suggest)
+}
+
+func (m *model) applySuggest(dir int) {
+	m.syncSuggest()
+	if len(m.suggest) == 0 {
+		return
+	}
+	cur := strings.TrimSpace(m.input.Value())
+	if dir != 0 && strings.TrimSpace(complete.Apply(m.input.Value(), m.suggest[m.suggestIdx])) == cur && len(m.suggest) > 1 {
+		m.moveSuggest(dir)
+	}
+	m.input.SetValue(complete.Apply(m.input.Value(), m.suggest[m.suggestIdx]))
+	m.input.MoveToEnd()
+	m.syncSuggest()
+}
+
 func (m *model) submit() (tea.Model, tea.Cmd) {
 	text := strings.TrimSpace(m.input.Value())
 	if text == "" {
@@ -334,6 +403,7 @@ func (m *model) histPrev() tea.Cmd {
 	}
 	m.input.SetValue(m.hist[m.histIdx])
 	m.input.MoveToEnd()
+	m.syncSuggest()
 	return nil
 }
 
@@ -345,11 +415,13 @@ func (m *model) histNext() tea.Cmd {
 		m.histIdx = -1
 		m.input.SetValue(m.draft)
 		m.input.MoveToEnd()
+		m.syncSuggest()
 		return nil
 	}
 	m.histIdx++
 	m.input.SetValue(m.hist[m.histIdx])
 	m.input.MoveToEnd()
+	m.syncSuggest()
 	return nil
 }
 

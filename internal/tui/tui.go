@@ -14,6 +14,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/sspzoa/goppi/internal/agent"
+	"github.com/sspzoa/goppi/internal/complete"
 	"github.com/sspzoa/goppi/internal/config"
 	"github.com/sspzoa/goppi/internal/ui"
 	"github.com/sspzoa/goppi/internal/upstage"
@@ -75,6 +76,8 @@ type model struct {
 	histIdx                  int
 	draft                    string
 	status                   string
+	suggest                  []complete.Item
+	suggestIdx               int
 }
 
 func Run(ctx context.Context, a *agent.Agent) error {
@@ -172,7 +175,8 @@ func (m *model) render() string {
 	header := m.renderHeader()
 	footer := m.renderFooter()
 	input := m.renderInput()
-	chrome := lipgloss.Height(header) + lipgloss.Height(input) + lipgloss.Height(footer) + 2
+	suggest := m.renderSuggest()
+	chrome := lipgloss.Height(header) + lipgloss.Height(input) + lipgloss.Height(footer) + lipgloss.Height(suggest) + 2
 	vpH := m.height - chrome
 	if vpH < 3 {
 		vpH = 3
@@ -187,7 +191,12 @@ func (m *model) render() string {
 	}
 
 	sep := m.st.sep.Render(strings.Repeat("─", max(m.width, 1)))
-	return lipgloss.JoinVertical(lipgloss.Left, header, sep, body, input, footer)
+	parts := []string{header, sep, body}
+	if suggest != "" {
+		parts = append(parts, suggest)
+	}
+	parts = append(parts, input, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m *model) renderHeader() string {
@@ -226,6 +235,33 @@ func (m *model) renderInput() string {
 	return box.Render(m.input.View())
 }
 
+func (m *model) renderSuggest() string {
+	if m.overlay != overlayNone || m.busy || len(m.suggest) == 0 {
+		return ""
+	}
+	const maxRows = 6
+	start := 0
+	if m.suggestIdx >= maxRows {
+		start = m.suggestIdx - maxRows + 1
+	}
+	end := min(len(m.suggest), start+maxRows)
+	var b strings.Builder
+	for i := start; i < end; i++ {
+		it := m.suggest[i]
+		name := fmt.Sprintf("%-12s", it.Name)
+		line := name + "  " + it.Summary
+		if i == m.suggestIdx {
+			b.WriteString(m.st.brand.Render("● " + fit(line, max(m.width-2, 8))))
+		} else {
+			b.WriteString(m.st.mute.Render("  " + fit(line, max(m.width-2, 8))))
+		}
+		if i+1 < end {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
 func (m *model) renderFooter() string {
 	if m.status != "" {
 		return m.st.warn.Render(m.status)
@@ -234,7 +270,10 @@ func (m *model) renderFooter() string {
 		return m.st.brand.Render(m.spin.View()) + " " + m.st.mute.Render(m.phaseLabel()) +
 			m.st.mute.Render("   ctrl+c 취소")
 	}
-	return m.st.hint.Render("enter 보내기  ·  ctrl+j 줄바꿈  ·  ctrl+c 종료  ·  ? 도움말")
+	if len(m.suggest) > 0 {
+		return m.st.hint.Render("tab 완성  ·  ↑↓ 선택  ·  enter 실행")
+	}
+	return m.st.hint.Render("enter 보내기  ·  / 명령  ·  tab 완성  ·  ? 도움말")
 }
 
 func (m *model) phaseLabel() string {
@@ -306,6 +345,8 @@ func helpText() string {
 	return strings.TrimSpace(`
 단축키
   enter        보내기
+  tab          명령 자동완성
+  ↑↓           제안 선택
   ctrl+j       줄바꿈
   ctrl+c       생성 취소 / 종료
   pgup pgdn    스크롤

@@ -59,7 +59,10 @@ The agent reads, in order:
 ```bash
 goppi completions zsh > ~/.zfunc/_goppi
 goppi completions bash > /usr/local/etc/bash_completion.d/goppi
+goppi completions fish > ~/.config/fish/completions/goppi.fish
 ```
+
+Inside the TUI, `/` then `tab` completes `/model`, `/effort`, and their values.
 
 ## Layout
 
@@ -73,6 +76,6 @@ internal/session     named transcripts
 internal/instructions
 ```
 
-In the TUI: `enter` sends, `ctrl+j` newline, `?` keys, `/model` and `/effort` open pickers. `bash` / writes still ask unless `--always-approve`. `GOPPI_TUI=0` falls back to the line REPL.
+In the TUI: `enter` sends, `tab` completes `/` commands, `ctrl+j` newline, `?` keys, `/model` and `/effort` open pickers. `bash` / writes still ask unless `--always-approve`. `GOPPI_TUI=0` falls back to the line REPL.
 
 AGPL-3.0. See [CHANGELOG.md](CHANGELOG.md).

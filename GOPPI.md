@@ -17,6 +17,7 @@ make test
 - `internal/agent` — tool loop
 - `internal/tools` — files, bash, documents
 - `internal/tui` — fullscreen TUI (Charm Bubble Tea v2)
+- `internal/complete` — slash + shell autocomplete
 
 Agent, tools, and the Upstage client stay stdlib. The interactive TUI is Charm.
 

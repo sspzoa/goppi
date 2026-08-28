@@ -199,7 +199,7 @@ func ModelRow(current bool, id, summary string) {
 func Help() {
 	fmt.Fprintln(Out(), mute("  명령"))
 	rows := [][2]string{
-		{"/help", "이 도움말"},
+		{"/help", "이 도움말 · tab 완성"},
 		{"/model [name]", "solar-pro4 · pro3 · pro2 · mini"},
 		{"/effort [level]", "none · low · medium · high · max"},
 		{"/new", "세션 초기화"},

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — 2026-08-28
+
+- TUI: `tab` / `shift+tab` complete slash commands, models, and effort
+- Shell: `goppi completions` covers flags, models, sessions (zsh/bash/fish)
+
 ## 0.5.0 — 2026-08-28
 
 Fullscreen TUI in the style of a shipping coding-agent CLI.

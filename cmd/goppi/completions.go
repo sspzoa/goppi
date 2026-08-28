@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/sspzoa/goppi/internal/complete"
 )
 
 func cmdCompletions(args []string) error {
@@ -9,54 +12,29 @@ func cmdCompletions(args []string) error {
 	if len(args) > 0 {
 		shell = args[0]
 	}
-	switch shell {
-	case "zsh":
-		fmt.Print(zshComp)
-	case "bash":
-		fmt.Print(bashComp)
-	default:
-		return fmt.Errorf("usage: goppi completions zsh|bash")
+	script, err := complete.Script(shell)
+	if err != nil {
+		return err
 	}
+	fmt.Print(script)
 	return nil
 }
 
-const zshComp = `#compdef goppi
-
-_goppi() {
-  local -a cmds
-  cmds=(
-    'login:Save an Upstage API key'
-    'logout:Remove the saved key'
-    'models:List Solar chat models'
-    'doctor:Check local setup'
-    'init:Write GOPPI.md'
-    'inspect:Show resolved config'
-    'sessions:List and manage sessions'
-    'export:Export a session as Markdown'
-    'version:Print version'
-    'completions:Shell completion scripts'
-    'help:Show help'
-  )
-  if (( CURRENT == 2 )); then
-    _describe 'command' cmds
-    return
-  fi
-  case $words[2] in
-    sessions) _values 'sessions' list delete ;;
-    completions) _values 'shell' zsh bash ;;
-  esac
+func cmdComplete(args []string) error {
+	kind := "commands"
+	prefix := ""
+	if len(args) > 0 {
+		kind = args[0]
+	}
+	if len(args) > 1 {
+		prefix = args[1]
+	}
+	names, err := complete.Names(kind, prefix)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		fmt.Fprintln(os.Stdout, name)
+	}
+	return nil
 }
-
-_goppi
-`
-
-const bashComp = `_goppi() {
-  local cur
-  COMPREPLY=()
-  cur="${COMP_WORDS[COMP_CWORD]}"
-  if [[ ${COMP_CWORD} -eq 1 ]]; then
-    COMPREPLY=( $(compgen -W "login logout models doctor init inspect sessions export version completions help" -- "$cur") )
-  fi
-}
-complete -F _goppi goppi
-`

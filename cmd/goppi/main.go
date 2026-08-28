@@ -43,6 +43,8 @@ func run(args []string) error {
 		return cmdExport(args[1:])
 	case "completions":
 		return cmdCompletions(args[1:])
+	case "complete":
+		return cmdComplete(args[1:])
 	default:
 		return cmdRun(args)
 	}
