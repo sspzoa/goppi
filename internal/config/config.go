@@ -175,6 +175,9 @@ func UserConfigDir() (string, error) {
 }
 
 func UserDataDir() (string, error) {
+	if v := os.Getenv("GOPPI_DATA_DIR"); v != "" {
+		return v, os.MkdirAll(v, 0o755)
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err

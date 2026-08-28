@@ -13,10 +13,11 @@ import (
 )
 
 type Agent struct {
-	Cfg      config.Config
-	Client   provider.Client
-	Tools    *tools.Registry
-	Messages []provider.Message
+	Cfg       config.Config
+	Client    provider.Client
+	Tools     *tools.Registry
+	Messages  []provider.Message
+	SessionID string
 }
 
 func New(cfg config.Config, client provider.Client, registry *tools.Registry) *Agent {
@@ -25,6 +26,7 @@ func New(cfg config.Config, client provider.Client, registry *tools.Registry) *A
 
 func (a *Agent) Reset() {
 	a.Messages = nil
+	a.SessionID = ""
 }
 
 func (a *Agent) Run(ctx context.Context, user string) error {

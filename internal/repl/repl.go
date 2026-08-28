@@ -18,6 +18,17 @@ import (
 	"github.com/sspzoa/goppi/internal/upstage"
 )
 
+func ApplySession(a *agent.Agent, f session.File) {
+	a.SessionID = f.ID
+	a.Messages = f.Messages
+	if f.CacheKey != "" {
+		a.Cfg.PromptCacheKey = f.CacheKey
+	}
+	if f.Model != "" {
+		a.Cfg.Model = f.Model
+	}
+}
+
 func NewAgent(cfg config.Config) (*agent.Agent, error) {
 	key := cfg.ResolveAPIKey()
 	if key == "" {
@@ -34,7 +45,16 @@ func RunOnce(ctx context.Context, a *agent.Agent, prompt string) error {
 	if err := a.Run(ctx, prompt); err != nil {
 		return err
 	}
-	return session.Save(a.Cfg, a.Messages)
+	return saveSession(a)
+}
+
+func saveSession(a *agent.Agent) error {
+	id, err := session.Persist(a.Cfg, a.SessionID, a.Messages)
+	if err != nil {
+		return err
+	}
+	a.SessionID = id
+	return nil
 }
 
 func Loop(ctx context.Context, a *agent.Agent) error {
@@ -63,7 +83,7 @@ func Loop(ctx context.Context, a *agent.Agent) error {
 			ui.Error("%s", err)
 			continue
 		}
-		if err := session.Save(a.Cfg, a.Messages); err != nil {
+		if err := saveSession(a); err != nil {
 			ui.Warn("세션 저장 실패: %s", err)
 		}
 	}
@@ -80,8 +100,9 @@ func handleSlash(a *agent.Agent, line string) (quit bool, err error) {
 		return true, nil
 	case "/new":
 		a.Reset()
+		a.SessionID = session.NewID()
 		a.Cfg.PromptCacheKey = newCacheKey()
-		ui.Info("세션을 초기화했습니다.")
+		ui.Info("세션을 초기화했습니다. (%s)", a.SessionID)
 	case "/tools":
 		ui.Info("%s", strings.Join(a.Tools.Names(), ", "))
 	case "/model":

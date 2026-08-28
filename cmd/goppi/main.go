@@ -35,6 +35,10 @@ func run(args []string) error {
 		return cmdDoctor()
 	case "inspect":
 		return cmdInspect(args[1:])
+	case "sessions":
+		return cmdSessions(args[1:])
+	case "export":
+		return cmdExport(args[1:])
 	default:
 		return cmdRun(args)
 	}
@@ -54,6 +58,8 @@ Commands:
   models         List Solar chat models
   doctor         Check local setup
   inspect        Show resolved config
+  sessions       List and manage sessions
+  export [id]    Export a session as Markdown
   version        Print version
 
 Flags:
@@ -62,6 +68,7 @@ Flags:
       --effort string     none | minimal | low | medium | high | xhigh | max
   -C, --cwd string        Working directory
   -c, --continue          Resume last session
+  -r, --resume id         Resume a session by id
       --max-turns int     Max agent turns
 
 API key: goppi login  or  UPSTAGE_API_KEY

@@ -28,6 +28,8 @@ func cmdRun(args []string) error {
 	maxTurns := fs.Int("max-turns", 0, "max agent turns")
 	cont := fs.Bool("c", false, "resume last session")
 	fs.BoolVar(cont, "continue", false, "resume last session")
+	resume := fs.String("r", "", "resume session id")
+	fs.StringVar(resume, "resume", "", "resume session id")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
@@ -59,16 +61,21 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
-	if *cont {
+	switch {
+	case *resume != "":
+		f, err := session.Load(*resume)
+		if err != nil {
+			return fmt.Errorf("session %s: %w", *resume, err)
+		}
+		repl.ApplySession(a, f)
+		ui.Info("세션 %s 을 이었습니다. (%d messages)", f.ID, len(f.Messages))
+	case *cont:
 		last, err := session.LoadLast()
 		if err != nil {
 			return fmt.Errorf("last session: %w", err)
 		}
-		a.Messages = last.Messages
-		if last.CacheKey != "" {
-			a.Cfg.PromptCacheKey = last.CacheKey
-		}
-		ui.Info("이전 세션을 이었습니다. (%d messages)", len(last.Messages))
+		repl.ApplySession(a, last)
+		ui.Info("이전 세션을 이었습니다. (%s, %d messages)", last.ID, len(last.Messages))
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
