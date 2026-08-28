@@ -28,7 +28,7 @@ func TestBlocksFromMessages(t *testing.T) {
 func TestWelcomeHasBrand(t *testing.T) {
 	st := newStyles()
 	out := renderWelcome(st, 60, 12, "solar-pro3", "medium", "~/work")
-	for _, want := range []string{"고삐", "에이전트 하네스", "solar-pro3"} {
+	for _, want := range []string{"고삐", "한국형 하네스", "solar-pro3"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q\n%s", want, out)
 		}
@@ -84,7 +84,7 @@ func TestViewHasChrome(t *testing.T) {
 	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
 	m.width, m.height = 80, 24
 	out := m.View().Content
-	for _, want := range []string{"고삐", "하네스", "enter", "tab"} {
+	for _, want := range []string{"고삐", "한국형", "enter", "tab"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q\n%s", want, out)
 		}

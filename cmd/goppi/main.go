@@ -51,7 +51,7 @@ func run(args []string) error {
 }
 
 func printHelp() {
-	fmt.Fprintf(os.Stderr, `고삐 — 로컬 에이전트 하네스
+	fmt.Fprintf(os.Stderr, `고삐 — 한국형 에이전트 하네스
 
 사용:
   goppi                     풀스크린 TUI

@@ -101,7 +101,7 @@ func Summarize(s string) string {
 }
 
 func systemPrompt(workdir, extra string) string {
-	s := fmt.Sprintf(`너는 고삐다. 사용자 머신에서 도는 로컬 코딩 에이전트 하네스다.
+	s := fmt.Sprintf(`너는 고삐다. 사용자 머신에서 도는 한국형 코딩 에이전트 하네스다.
 툴로 파일을 보고 고친다. 말은 짧게, 일은 직접 한다.
 
 작업 디렉터리: %s

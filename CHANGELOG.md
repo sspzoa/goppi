@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 — 2026-08-28
+
+문서·제품 카피를 한국형 하네스로 다시 씀.
+
+- 독자 foundation model / sovereign AI에 대응하는 자리로 브랜딩
+- 제품 용어(TUI, session, reasoning, headless, slash command)는 영어 유지
+- CLI help, TUI 태그, GitHub description을 같은 축으로 맞춤
+
 ## 0.6.0 — 2026-08-28
 
 TUI 전면 재설계. 거터(gutter) 기반 트랜스크립트.

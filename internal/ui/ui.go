@@ -14,7 +14,7 @@ func Err() io.Writer { return os.Stderr }
 
 func Banner(version, model, effort, workdir string) {
 	title := "고삐"
-	tag := "하네스"
+	tag := "한국형"
 	meta := "v" + version
 	rows := [][2]string{
 		{"model", model},

@@ -85,7 +85,7 @@ func renderWelcome(st styles, width, height int, model, effort, workdir string) 
 	}
 	lines := []string{
 		st.brand.Render("고삐"),
-		st.tag.Render("에이전트 하네스"),
+		st.tag.Render("한국형 하네스"),
 		"",
 		st.mute.Render(model + " · " + effort),
 		st.mute.Render(workdir),

@@ -193,7 +193,7 @@ func (m *model) render() string {
 }
 
 func (m *model) renderHeader() string {
-	left := m.st.brand.Render("고삐") + " " + m.st.tag.Render("하네스")
+	left := m.st.brand.Render("고삐") + " " + m.st.tag.Render("한국형")
 	right := m.st.mute.Render("v" + config.Version)
 
 	effort := m.agent.Cfg.ReasoningEffort

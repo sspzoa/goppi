@@ -12,7 +12,7 @@ func TestBannerHasChrome(t *testing.T) {
 	out := capture(t, func() {
 		Banner("0.3.0", "solar-pro4", "", "/Users/sspzoa/goppi")
 	})
-	for _, want := range []string{"고삐", "하네스", "solar-pro4", "model", "effort", "workdir"} {
+	for _, want := range []string{"고삐", "한국형", "solar-pro4", "model", "effort", "workdir"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("banner missing %q\n%s", want, out)
 		}
