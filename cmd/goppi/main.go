@@ -1,16 +1,9 @@
 package main
 
 import (
-	"context"
-	"flag"
 	"fmt"
 	"os"
-	"os/signal"
-	"strings"
 
-	"github.com/sspzoa/goppi/internal/config"
-	"github.com/sspzoa/goppi/internal/repl"
-	"github.com/sspzoa/goppi/internal/session"
 	"github.com/sspzoa/goppi/internal/ui"
 	"github.com/sspzoa/goppi/internal/upstage"
 )
@@ -23,81 +16,55 @@ func main() {
 }
 
 func run(args []string) error {
-	fs := flag.NewFlagSet("goppi", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `goppi — Upstage Solar 에이전트 하네스
-
-  goppi                     REPL
-  goppi "할 일"              한 번 실행
-  goppi --continue           마지막 세션 이어서
-
-  API 키  UPSTAGE_API_KEY
-  콘솔    %s
-
-`, upstage.ConsoleURL)
-		fs.PrintDefaults()
+	if len(args) == 0 {
+		return cmdRun(nil)
 	}
-	showVersion := fs.Bool("version", false, "print version")
-	model := fs.String("model", "", "solar-pro4 | solar-pro3 | solar-pro2 | solar-mini")
-	effort := fs.String("effort", "", "none | minimal | low | medium | high | xhigh | max")
-	workdir := fs.String("C", "", "working directory")
-	maxTurns := fs.Int("max-turns", 0, "max agent turns")
-	cont := fs.Bool("continue", false, "resume last session")
-	if err := fs.Parse(args); err != nil {
-		if err == flag.ErrHelp {
-			return nil
-		}
-		return err
-	}
-
-	if *showVersion {
-		fmt.Println(config.Version)
+	switch args[0] {
+	case "help", "-h", "--help":
+		printHelp()
 		return nil
+	case "version", "--version", "-v":
+		return cmdVersion()
+	case "login":
+		return cmdLogin(args[1:])
+	case "logout":
+		return cmdLogout()
+	case "models":
+		return cmdModels()
+	case "doctor":
+		return cmdDoctor()
+	case "inspect":
+		return cmdInspect(args[1:])
+	default:
+		return cmdRun(args)
 	}
+}
 
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
-	if *model != "" {
-		cfg.Model = *model
-	}
-	if *effort != "" {
-		cfg.ReasoningEffort = *effort
-	}
-	if *workdir != "" {
-		cfg.WorkDir = *workdir
-	}
-	if *maxTurns > 0 {
-		cfg.MaxTurns = *maxTurns
-	}
-	if err := cfg.Normalize(); err != nil {
-		return err
-	}
+func printHelp() {
+	fmt.Fprintf(os.Stderr, `goppi — Upstage Solar coding agent
 
-	a, err := repl.NewAgent(cfg)
-	if err != nil {
-		return err
-	}
-	if *cont {
-		last, err := session.LoadLast()
-		if err != nil {
-			return fmt.Errorf("last session: %w", err)
-		}
-		a.Messages = last.Messages
-		if last.CacheKey != "" {
-			a.Cfg.PromptCacheKey = last.CacheKey
-		}
-		ui.Info("이전 세션을 이었습니다. (%d messages)", len(last.Messages))
-	}
+Usage:
+  goppi                     Interactive REPL
+  goppi -p "task"           Headless one-shot
+  goppi "task"              Headless one-shot
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
+Commands:
+  login          Save an Upstage API key
+  logout         Remove the saved key
+  models         List Solar chat models
+  doctor         Check local setup
+  inspect        Show resolved config
+  version        Print version
 
-	rest := strings.TrimSpace(strings.Join(fs.Args(), " "))
-	if rest != "" {
-		return repl.RunOnce(ctx, a, rest)
-	}
-	return repl.Loop(ctx, a)
+Flags:
+  -p, --prompt string     Headless prompt
+  -m, --model string      solar-pro4 | solar-pro3 | solar-pro2 | solar-mini
+      --effort string     none | minimal | low | medium | high | xhigh | max
+  -C, --cwd string        Working directory
+  -c, --continue          Resume last session
+      --max-turns int     Max agent turns
+
+API key: goppi login  or  UPSTAGE_API_KEY
+Console: %s
+`, upstage.ConsoleURL)
 }

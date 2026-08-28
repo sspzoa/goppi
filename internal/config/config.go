@@ -10,7 +10,7 @@ import (
 	"github.com/sspzoa/goppi/internal/upstage"
 )
 
-const Version = "0.3.0"
+const Version = "0.4.0"
 
 var Efforts = []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 
@@ -66,7 +66,26 @@ func (c *Config) Normalize() error {
 }
 
 func (c Config) ResolveAPIKey() string {
-	return upstage.ResolveAPIKey(c.APIKey)
+	if k := upstage.ResolveAPIKey(c.APIKey); k != "" {
+		return k
+	}
+	return LoadStoredAPIKey()
+}
+
+func (c Config) KeySource() string {
+	if strings.TrimSpace(c.APIKey) != "" {
+		return "config.json"
+	}
+	if os.Getenv("UPSTAGE_API_KEY") != "" {
+		return "UPSTAGE_API_KEY"
+	}
+	if os.Getenv("GOPPI_API_KEY") != "" {
+		return "GOPPI_API_KEY"
+	}
+	if LoadStoredAPIKey() != "" {
+		return "goppi login"
+	}
+	return ""
 }
 
 func searchPaths() []string {
@@ -146,6 +165,15 @@ func validEffort(s string) bool {
 	return false
 }
 
+func UserConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(home, ".config", "goppi")
+	return dir, os.MkdirAll(dir, 0o700)
+}
+
 func UserDataDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -153,4 +181,59 @@ func UserDataDir() (string, error) {
 	}
 	dir := filepath.Join(home, ".local", "share", "goppi")
 	return dir, os.MkdirAll(dir, 0o755)
+}
+
+func credentialsPath() (string, error) {
+	dir, err := UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "credentials.json"), nil
+}
+
+func LoadStoredAPIKey() string {
+	path, err := credentialsPath()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	var file struct {
+		APIKey string `json:"api_key"`
+	}
+	if err := json.Unmarshal(data, &file); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(file.APIKey)
+}
+
+func SaveAPIKey(key string) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return fmt.Errorf("empty API key")
+	}
+	path, err := credentialsPath()
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(struct {
+		APIKey string `json:"api_key"`
+	}{APIKey: key}, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
+
+func ClearAPIKey() error {
+	path, err := credentialsPath()
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

@@ -63,7 +63,7 @@ func ResolveAPIKey(explicit string) string {
 }
 
 func MissingKeyError() error {
-	return fmt.Errorf("UPSTAGE_API_KEY가 없습니다. %s 에서 키를 만드세요", ConsoleURL)
+	return fmt.Errorf("API 키가 없습니다. goppi login 을 실행하거나 UPSTAGE_API_KEY 를 설정하세요\n  %s", ConsoleURL)
 }
 
 func KnownModel(id string) bool {
