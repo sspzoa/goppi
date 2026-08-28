@@ -8,14 +8,17 @@ import (
 	"testing"
 )
 
-func TestBannerHasUpstageBrand(t *testing.T) {
+func TestBannerHasChrome(t *testing.T) {
 	out := capture(t, func() {
 		Banner("0.3.0", "solar-pro4", "", "/Users/sspzoa/goppi")
 	})
-	for _, want := range []string{"goppi", "UPSTAGE SOLAR", "solar-pro4", "model", "effort", "workdir"} {
+	for _, want := range []string{"고삐", "하네스", "solar-pro4", "model", "effort", "workdir"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("banner missing %q\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "UPSTAGE SOLAR") {
+		t.Fatalf("banner still has exclusive brand\n%s", out)
 	}
 }
 

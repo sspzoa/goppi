@@ -51,37 +51,37 @@ func run(args []string) error {
 }
 
 func printHelp() {
-	fmt.Fprintf(os.Stderr, `goppi — Upstage Solar coding agent
+	fmt.Fprintf(os.Stderr, `고삐 — 로컬 에이전트 하네스
 
-Usage:
-  goppi                     Interactive fullscreen TUI
-  goppi -p "task"           Headless one-shot
-  goppi "task"              Headless one-shot
+사용:
+  goppi                     풀스크린 TUI
+  goppi -p "할 일"           헤드리스 원샷
+  goppi "할 일"              헤드리스 원샷
 
-Commands:
-  login          Save an Upstage API key
-  logout         Remove the saved key
-  models         List Solar chat models
-  doctor         Check local setup
-  init           Write GOPPI.md project instructions
-  inspect        Show resolved config
-  sessions       List and manage sessions
-  export [id]    Export a session as Markdown
-  completions    Shell completion scripts
-  version        Print version
+커맨드:
+  login          API 키 저장
+  logout         저장된 키 삭제
+  models         채팅 모델 목록
+  doctor         로컬 설정 확인
+  init           GOPPI.md 프로젝트 지시 작성
+  inspect        해석된 설정 보기
+  sessions       세션 목록·관리
+  export [id]    세션을 Markdown으로 내보내기
+  completions    셸 자동완성 스크립트
+  version        버전 출력
 
-Flags:
-  -p, --prompt string     Headless prompt
+플래그:
+  -p, --prompt string     헤드리스 프롬프트
   -m, --model string      solar-pro4 | solar-pro3 | solar-pro2 | solar-mini
       --effort string     none | minimal | low | medium | high | xhigh | max
-  -C, --cwd string        Working directory
-  -c, --continue          Resume last session
-  -r, --resume id         Resume a session by id
-      --max-turns int     Max agent turns
+  -C, --cwd string        작업 디렉터리
+  -c, --continue          마지막 세션 이어가기
+  -r, --resume id         세션 id로 이어가기
+      --max-turns int     에이전트 턴 상한
       --output-format     plain | json
-      --always-approve    Skip permission prompts (alias: --yolo)
+      --always-approve    권한 확인 생략 (별칭: --yolo)
 
-API key: goppi login  or  UPSTAGE_API_KEY
-Console: %s
+API 키: goppi login  또는  UPSTAGE_API_KEY
+콘솔: %s
 `, upstage.ConsoleURL)
 }

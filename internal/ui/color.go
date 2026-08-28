@@ -5,19 +5,18 @@ import (
 	"os"
 )
 
-// Upstage public brand tokens (2026 site):
-// primary action #5B52FF, ink #0A0D14, body #52525B, border #CDD0D5.
+// 고삐 브랜드: 주홍 고삐, 먹 바탕, 한지 글자.
 const (
 	Reset = "\033[0m"
 	Bold  = "\033[1m"
 	Dim   = "\033[2m"
 
-	violetR, violetG, violetB = 91, 82, 255
-	softR, softG, softB       = 155, 150, 255
-	muteR, muteG, muteB       = 139, 143, 152
-	okR, okG, okB             = 46, 184, 138
-	warnR, warnG, warnB       = 214, 158, 46
-	errR, errG, errB          = 232, 93, 93
+	violetR, violetG, violetB = 194, 61, 42
+	softR, softG, softB       = 224, 122, 95
+	muteR, muteG, muteB       = 154, 145, 136
+	okR, okG, okB             = 47, 143, 120
+	warnR, warnG, warnB       = 201, 148, 58
+	errR, errG, errB          = 196, 84, 74
 )
 
 func colorEnabled() bool {
@@ -39,7 +38,6 @@ func truecolor() bool {
 	case "truecolor", "24bit":
 		return true
 	}
-	// Most modern terminals accept 24-bit even without COLORTERM.
 	return os.Getenv("TERM") != "dumb"
 }
 
@@ -50,7 +48,7 @@ func fg(r, g, b int) string {
 	if truecolor() {
 		return fmt.Sprintf("\033[38;2;%d;%d;%dm", r, g, b)
 	}
-	return "\033[38;5;105m"
+	return "\033[38;5;166m"
 }
 
 func Violet() string { return fg(violetR, violetG, violetB) }

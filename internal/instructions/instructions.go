@@ -32,16 +32,15 @@ func Load(workdir string) (text string, found []string) {
 
 const Template = `# GOPPI.md
 
-This file is project instructions for goppi (Upstage Solar coding agent).
-Keep it short. The agent reads it on every turn.
+고삐가 매 턴 읽는 프로젝트 지시입니다. 짧게 쓰세요.
 
-## Project
+## 이 레포
 
-- What this repo is
-- How to build and test
-- What not to touch
+- 무엇인지
+- 빌드·테스트 방법
+- 건드리지 말 것
 
-## Commands
+## 명령
 
 ` + "```" + `
 make build

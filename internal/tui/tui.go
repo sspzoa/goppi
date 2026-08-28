@@ -165,7 +165,7 @@ func (m *model) View() tea.View {
 	v := tea.NewView(m.render())
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
-	v.WindowTitle = "goppi"
+	v.WindowTitle = "고삐"
 	v.BackgroundColor = colInk
 	v.ForegroundColor = colText
 	return v
@@ -200,7 +200,7 @@ func (m *model) render() string {
 }
 
 func (m *model) renderHeader() string {
-	left := m.st.brand.Render("goppi") + "  " + m.st.tag.Render("UPSTAGE SOLAR")
+	left := m.st.brand.Render("고삐") + "  " + m.st.tag.Render("하네스")
 	right := m.st.mute.Render("v" + config.Version)
 	top := lipgloss.JoinHorizontal(lipgloss.Top, left, spacer(m.width-lipgloss.Width(left)-lipgloss.Width(right)), right)
 
@@ -280,7 +280,7 @@ func (m *model) phaseLabel() string {
 	if m.phase != "" {
 		return m.phase
 	}
-	return "thinking"
+	return "생각 중"
 }
 
 func (m *model) renderOverlay() string {
@@ -356,7 +356,7 @@ func helpText() string {
 
 명령
   /help        도움말
-  /model       Solar 모델
+  /model       모델
   /effort      reasoning 강도
   /new         세션 초기화
   /tools       등록된 툴

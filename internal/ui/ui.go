@@ -13,8 +13,8 @@ func Out() io.Writer { return os.Stdout }
 func Err() io.Writer { return os.Stderr }
 
 func Banner(version, model, effort, workdir string) {
-	title := "goppi"
-	tag := "UPSTAGE SOLAR"
+	title := "고삐"
+	tag := "하네스"
 	meta := "v" + version
 	rows := [][2]string{
 		{"model", model},
@@ -88,7 +88,7 @@ func Reasoning(text string) {
 	if text == "" {
 		return
 	}
-	fmt.Fprintf(Out(), "\n  %s\n  %s\n", soft("reasoning"), mute(text))
+	fmt.Fprintf(Out(), "\n  %s\n  %s\n", soft("생각"), mute(text))
 }
 
 type Stream struct {
@@ -100,7 +100,7 @@ func NewStream() *Stream { return &Stream{} }
 func (s *Stream) Write(reasoning, content string) {
 	if reasoning != "" {
 		if s.phase == "" {
-			fmt.Fprintf(Out(), "\n  %s\n  ", soft("reasoning"))
+			fmt.Fprintf(Out(), "\n  %s\n  ", soft("생각"))
 			if colorEnabled() {
 				fmt.Fprint(Out(), Mute())
 			}

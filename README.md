@@ -1,34 +1,21 @@
-<div align="center">
+# 고삐
 
-<img src="docs/assets/goppi-wordmark.png" alt="goppi" width="420">
+에이전트에 고삐를 채우는 로컬 하네스입니다.
 
-<h1>goppi (고삐)</h1>
+풀스크린 TUI로 작업 트리를 읽고, 파일을 고치고, 셸을 돌리고, 문서를 파싱합니다. 스크립트·CI에서는 헤드리스로 돌아갑니다. 바이너리 이름은 `goppi`입니다.
 
-**goppi** is a terminal coding agent on
-[Upstage Solar](https://console.upstage.ai/docs/capabilities/generate).
-It runs as a fullscreen TUI that reads your tree, edits files, runs the
-shell, and parses office documents — interactively, or headlessly for
-scripts and CI.
+현재 기본 백엔드는 [Upstage Solar](https://console.upstage.ai/docs/capabilities/generate)입니다 (`solar-pro4`, `reasoning_effort=medium`). 다른 프로바이더는 아직 없습니다.
 
-[Installing](#installing) ·
-[Building from source](#building-from-source) ·
-[Documentation](#documentation) ·
-[Repository layout](#repository-layout) ·
-[Development](#development) ·
-[License](#license)
+[설치](#설치) ·
+[소스에서 빌드](#소스에서-빌드) ·
+[문서](#문서) ·
+[레이아웃](#레이아웃) ·
+[개발](#개발) ·
+[라이선스](#라이선스)
 
-![goppi TUI](docs/assets/tui.png)
+## 설치
 
-Default model is `solar-pro4` with `reasoning_effort=medium`.
-Get a key at [console.upstage.ai](https://console.upstage.ai).
-
-</div>
-
----
-
-## Installing
-
-Requires [Go 1.27+](https://go.dev/dl/). The installer is `go install`:
+[Go 1.27+](https://go.dev/dl/)가 필요합니다. 설치 스크립트는 `go install`입니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sspzoa/goppi/main/install.sh | bash
@@ -37,17 +24,15 @@ goppi login
 goppi
 ```
 
-Or, if `$(go env GOPATH)/bin` is already on `PATH`:
+`$(go env GOPATH)/bin`이 이미 `PATH`에 있으면:
 
 ```bash
 go install github.com/sspzoa/goppi/cmd/goppi@latest
 ```
 
-`goppi login` writes `~/.config/goppi/credentials.json` (`0600`). It is a
-local key store — not OAuth, and it does not open a browser. You can also
-export `UPSTAGE_API_KEY`. See [Authentication](docs/user-guide/authentication.md).
+`goppi login`은 `~/.config/goppi/credentials.json`을 모드 `0600`으로 씁니다. 로컬 키 저장소이며 OAuth가 아니고 브라우저를 열지 않습니다. `UPSTAGE_API_KEY` 또는 `GOPPI_API_KEY`를 보내도 됩니다. [인증](docs/user-guide/authentication.md)을 보세요.
 
-## Building from source
+## 소스에서 빌드
 
 ```bash
 git clone https://github.com/sspzoa/goppi.git
@@ -57,16 +42,16 @@ make test
 ./bin/goppi version
 ```
 
-`make install` is `go install ./cmd/goppi`.
+`make install`은 `go install ./cmd/goppi`입니다.
 
-On first launch, `cd` into a project and run `goppi`. Useful first prompts:
+프로젝트 디렉터리에서 `goppi`를 켜세요. 처음 물어보기 좋은 것:
 
 ```text
 이 레포 구조를 설명해줘
 테스트가 어디서 도는지 찾고 한 개만 돌려
 ```
 
-Headless:
+헤드리스:
 
 ```bash
 goppi -p "이 레포 구조를 설명해줘"
@@ -74,27 +59,25 @@ goppi -p "요약해" --output-format json
 goppi --always-approve -p "go test ./..."
 ```
 
-`bash`, `write_file`, and `edit_file` ask before running unless
-`--always-approve` / `--yolo`. JSON and non-TTY deny those tools unless
-you pass the flag.
+`bash`, `write_file`, `edit_file`은 `--always-approve` / `--yolo`가 없으면 실행 전에 묻습니다. JSON·비 TTY에서는 플래그 없이 해당 툴을 거부합니다.
 
-## Documentation
+## 문서
 
-The user guide ships in [`docs/`](docs/README.md):
+유저 가이드는 [`docs/`](docs/README.md)에 있습니다.
 
-| Page | Contents |
-|------|----------|
-| [Getting started](docs/user-guide/getting-started.md) | Install, API key, first TUI session |
-| [Authentication](docs/user-guide/authentication.md) | `login` / `logout`, env vars |
-| [TUI](docs/user-guide/tui.md) | Keys, slash commands, overlays |
-| [CLI](docs/user-guide/cli.md) | Commands, flags, shell completions |
-| [Configuration](docs/user-guide/configuration.md) | Files, models, `GOPPI.md` |
-| [Sessions](docs/user-guide/sessions.md) | `-c` / `-r`, export |
-| [Tools](docs/user-guide/tools.md) | Files, bash, Document Parse / OCR |
-| [Headless](docs/user-guide/headless.md) | `-p`, JSON, CI |
-| [Development](docs/development.md) | Build, tests, package layout |
+| 페이지 | 내용 |
+|--------|------|
+| [시작하기](docs/user-guide/getting-started.md) | 설치, API 키, 첫 TUI 세션 |
+| [인증](docs/user-guide/authentication.md) | `login` / `logout`, 환경 변수 |
+| [TUI](docs/user-guide/tui.md) | 키, 슬래시 명령, 오버레이 |
+| [CLI](docs/user-guide/cli.md) | 커맨드, 플래그, 셸 자동완성 |
+| [설정](docs/user-guide/configuration.md) | 파일, 모델, `GOPPI.md` |
+| [세션](docs/user-guide/sessions.md) | `-c` / `-r`, 내보내기 |
+| [툴](docs/user-guide/tools.md) | 파일, bash, 문서 |
+| [헤드리스](docs/user-guide/headless.md) | `-p`, JSON, CI |
+| [개발](docs/development.md) | 빌드, 테스트, 패키지 구조 |
 
-Shell completions:
+셸 자동완성:
 
 ```bash
 goppi completions zsh  > ~/.zfunc/_goppi
@@ -102,28 +85,27 @@ goppi completions bash > /usr/local/etc/bash_completion.d/goppi
 goppi completions fish > ~/.config/fish/completions/goppi.fish
 ```
 
-Inside the TUI, `/` then `tab` completes `/model`, `/effort`, and their values.
+TUI 안에서는 `/` 다음에 `tab`으로 `/model`, `/effort`와 값을 완성합니다.
 
-## Repository layout
+## 레이아웃
 
-| Path | Contents |
-|------|----------|
-| `cmd/goppi` | CLI entry: run, login, doctor, sessions, completions |
-| `internal/upstage` | Solar Chat + Document Parse / OCR HTTP |
-| `internal/provider` | Chat request/response, SSE |
-| `internal/agent` | Tool loop and event sink |
-| `internal/tui` | Fullscreen chat (Charm Bubble Tea v2) |
-| `internal/repl` | TTY → TUI, else line loop; headless `-p` |
-| `internal/tools` | Files, bash, documents |
-| `internal/session` | Named transcripts |
+| 경로 | 내용 |
+|------|------|
+| `cmd/goppi` | CLI 엔트리: run, login, doctor, sessions, completions |
+| `internal/upstage` | 현재 채팅·문서 HTTP 클라이언트 |
+| `internal/provider` | 채팅 요청/응답, SSE |
+| `internal/agent` | 툴 루프와 이벤트 싱크 |
+| `internal/tui` | 풀스크린 채팅 (Charm Bubble Tea v2) |
+| `internal/repl` | TTY면 TUI, 아니면 라인 루프. 헤드리스 `-p` |
+| `internal/tools` | 파일, bash, 문서 |
+| `internal/session` | 이름 있는 트랜스크립트 |
 | `internal/instructions` | `GOPPI.md` / `AGENTS.md` |
-| `internal/complete` | Slash + shell autocomplete |
-| `internal/config` | Defaults, env, credentials |
+| `internal/complete` | 슬래시·셸 자동완성 |
+| `internal/config` | 기본값, env, 자격 증명 |
 
-Agent, tools, and the Upstage client stay in the standard library. The
-interactive TUI is Charm. `GOPPI_TUI=0` falls back to the line REPL.
+에이전트, 툴, HTTP 클라이언트는 표준 라이브러리만 씁니다. 인터랙티브 TUI는 Charm입니다. `GOPPI_TUI=0`이면 라인 REPL로 떨어집니다.
 
-## Development
+## 개발
 
 ```bash
 make build
@@ -132,14 +114,12 @@ go vet ./...
 ./bin/goppi
 ```
 
-CI (`.github/workflows/ci.yml`) runs tests, `go build`, `goppi version`,
-and `goppi help` on Go 1.27.
+CI (`.github/workflows/ci.yml`)는 Go 1.27에서 테스트, `go build`, `goppi version`, `goppi help`를 돌립니다.
 
-Project instructions the agent reads, in order: `GOPPI.md`, `AGENTS.md`,
-`.goppi/instructions.md`. `goppi init` writes a stub.
+에이전트가 매 턴 읽는 프로젝트 지시: `GOPPI.md`, `AGENTS.md`, `.goppi/instructions.md`. `goppi init`이 스텁을 씁니다.
 
-See [CHANGELOG.md](CHANGELOG.md) for what landed in each release.
+릴리스별 변경은 [CHANGELOG.md](CHANGELOG.md)를 보세요.
 
-## License
+## 라이선스
 
 [AGPL-3.0](LICENSE).

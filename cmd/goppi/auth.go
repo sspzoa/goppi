@@ -39,7 +39,7 @@ func cmdLogin(args []string) error {
 		key = strings.TrimSpace(fs.Arg(0))
 	}
 	if key == "" {
-		fmt.Fprintf(os.Stderr, "Upstage API 키를 입력하세요 (%s)\n> ", upstage.ConsoleURL)
+		fmt.Fprintf(os.Stderr, "API 키를 입력하세요 (%s)\n> ", upstage.ConsoleURL)
 		sc := bufio.NewScanner(os.Stdin)
 		if !sc.Scan() {
 			return sc.Err()

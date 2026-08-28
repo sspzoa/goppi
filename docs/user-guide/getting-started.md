@@ -1,19 +1,21 @@
-# Getting started
+# 시작하기
 
-goppi (고삐) is a local coding agent on [Upstage Solar](https://console.upstage.ai/docs/capabilities/generate). It reads the working tree, edits files, runs shell commands, and parses office documents — interactively in a fullscreen TUI, or headlessly in scripts.
+고삐는 에이전트에 고삐를 채우는 로컬 하네스입니다. 작업 트리를 읽고, 파일을 고치고, 셸을 돌리고, 문서를 파싱합니다. 풀스크린 TUI로 쓰거나 스크립트에서 헤드리스로 돌립니다. 바이너리 이름은 `goppi`입니다.
 
-[Install](#install) · [API key](#api-key) · [First session](#first-session) · [Headless](#headless) · [Next](#next)
+현재 기본 백엔드는 [Upstage Solar](https://console.upstage.ai/docs/capabilities/generate)입니다.
 
-## Install
+[설치](#설치) · [API 키](#api-키) · [첫 세션](#첫-세션) · [헤드리스](#헤드리스) · [다음](#다음)
 
-Go 1.27+ is required. The installer puts `goppi` on your `PATH` via `go install`:
+## 설치
+
+Go 1.27+가 필요합니다. 설치 스크립트는 `go install`로 `goppi`를 `PATH`에 올립니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sspzoa/goppi/main/install.sh | bash
 goppi version
 ```
 
-Or build this tree:
+이 트리를 직접 빌드하려면:
 
 ```bash
 git clone https://github.com/sspzoa/goppi.git
@@ -22,34 +24,34 @@ make build
 ./bin/goppi version
 ```
 
-`go install github.com/sspzoa/goppi/cmd/goppi@latest` is the same as the installer. Make sure `$(go env GOPATH)/bin` (usually `~/go/bin`) is on `PATH`.
+`go install github.com/sspzoa/goppi/cmd/goppi@latest`는 설치 스크립트와 같습니다. `$(go env GOPATH)/bin`(보통 `~/go/bin`)이 `PATH`에 있어야 합니다.
 
-## API key
+## API 키
 
-Create a key at [console.upstage.ai](https://console.upstage.ai). Then either:
+현재 백엔드인 [console.upstage.ai](https://console.upstage.ai)에서 키를 만든 뒤:
 
 ```bash
 goppi login
 ```
 
-or:
+또는:
 
 ```bash
 export UPSTAGE_API_KEY=up_...
 ```
 
-`goppi login` writes `~/.config/goppi/credentials.json` with mode `0600`. It is a local key store — not OAuth, and it does not open a browser.
+`goppi login`은 `~/.config/goppi/credentials.json`을 모드 `0600`으로 씁니다. 로컬 키 저장소이며 OAuth가 아니고 브라우저를 열지 않습니다.
 
-Check the machine with `goppi doctor`. Details: [Authentication](authentication.md).
+머신은 `goppi doctor`로 확인하세요. 자세한 내용은 [인증](authentication.md)입니다.
 
-## First session
+## 첫 세션
 
 ```bash
 cd your-project
 goppi
 ```
 
-On a TTY this opens the fullscreen TUI. Useful first prompts:
+TTY면 풀스크린 TUI가 열립니다. 처음 물어보기 좋은 것:
 
 ```text
 이 레포 구조를 설명해줘
@@ -57,31 +59,31 @@ On a TTY this opens the fullscreen TUI. Useful first prompts:
 README를 현재 코드에 맞게 고쳐
 ```
 
-PDF / HWP / Office 파일은 에이전트에게 경로를 주면 `document_parse`로 넘깁니다.
+PDF / HWP / Office 파일은 경로를 주면 `document_parse`로 넘깁니다.
 
-Leave with `/quit`, or `ctrl+c` then `enter`.
+나갈 때는 `/quit`, 또는 `ctrl+c` 다음 `enter`.
 
-Project conventions belong in `GOPPI.md` so they load on every turn:
+프로젝트 규칙은 `GOPPI.md`에 두면 매 턴 읽습니다.
 
 ```bash
 goppi init
 ```
 
-See [project instructions](configuration.md#project-instructions).
+[프로젝트 지시](configuration.md#프로젝트-지시)를 보세요.
 
-## Headless
+## 헤드리스
 
-Same agent, no alt screen:
+같은 에이전트, 알트 스크린 없음:
 
 ```bash
 goppi -p "이 레포 구조를 설명해줘"
 goppi -p "요약해" --output-format json
 ```
 
-Write and bash tools are denied in non-TTY / JSON unless you pass `--always-approve`. See [Headless](headless.md).
+쓰기·bash 툴은 비 TTY / JSON에서 `--always-approve` 없이 거부됩니다. [헤드리스](headless.md)를 보세요.
 
-## Next
+## 다음
 
-- [TUI keys and slash commands](tui.md)
-- [CLI reference](cli.md)
-- [Configuration](configuration.md)
+- [TUI 키와 슬래시 명령](tui.md)
+- [CLI 레퍼런스](cli.md)
+- [설정](configuration.md)

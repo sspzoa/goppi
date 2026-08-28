@@ -3,16 +3,16 @@ package tui
 import "charm.land/lipgloss/v2"
 
 var (
-	colViolet = lipgloss.Color("#5B52FF")
-	colSoft   = lipgloss.Color("#9B96FF")
-	colMute   = lipgloss.Color("#8B8F98")
-	colText   = lipgloss.Color("#E8E9ED")
-	colInk    = lipgloss.Color("#0A0D14")
-	colLine   = lipgloss.Color("#2A2E38")
-	colOK     = lipgloss.Color("#2EB88A")
-	colWarn   = lipgloss.Color("#D69E2E")
-	colErr    = lipgloss.Color("#E85D5D")
-	colPanel  = lipgloss.Color("#12151C")
+	colViolet = lipgloss.Color("#C23D2A")
+	colSoft   = lipgloss.Color("#E07A5F")
+	colMute   = lipgloss.Color("#9A9188")
+	colText   = lipgloss.Color("#F2EDE6")
+	colInk    = lipgloss.Color("#161411")
+	colLine   = lipgloss.Color("#3A342E")
+	colOK     = lipgloss.Color("#2F8F78")
+	colWarn   = lipgloss.Color("#C9943A")
+	colErr    = lipgloss.Color("#C4544A")
+	colPanel  = lipgloss.Color("#1E1B18")
 )
 
 type styles struct {

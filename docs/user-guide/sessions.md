@@ -1,59 +1,59 @@
-# Sessions
+# 세션
 
-Each interactive or headless run persists the transcript so you can continue it. A session is a JSON file plus an id you pass to `-r` / `--resume`.
+인터랙티브든 헤드리스든 트랜스크립트를 남겨서 이어갈 수 있습니다. 세션은 JSON 파일과 `-r` / `--resume`에 넘기는 id입니다.
 
-[Resume](#resume) · [Export](#export) · [Storage](#storage) · [Cache key](#prompt-cache-key)
+[이어가기](#이어가기) · [내보내기](#내보내기) · [저장](#저장) · [캐시 키](#prompt-cache-키)
 
-## Resume
+## 이어가기
 
 ```bash
-goppi -c              # last session (the `last` pointer)
-goppi -r 7a3f2c18     # by id
-goppi sessions        # list
+goppi -c              # 마지막 세션 (`last` 포인터)
+goppi -r 7a3f2c18     # id로
+goppi sessions        # 목록
 goppi sessions delete 7a3f2c18
 ```
 
-`-c` and `-r` work with or without `-p`. Headless continue:
+`-c`와 `-r`은 `-p`와 같이 쓸 수 있습니다. 헤드리스 이어가기:
 
 ```bash
 goppi -c -p "이어서, 방금 파일을 커밋 메시지 초안으로"
 ```
 
-Inside the TUI, `/new` (or `ctrl+n`) starts a fresh id and prompt-cache key. `/sessions` shows recent titles. The previous file stays on disk until you delete it.
+TUI에서는 `/new`(또는 `ctrl+n`)가 새 id와 prompt-cache 키를 만듭니다. `/sessions`는 최근 제목을 보여 줍니다. 이전 파일은 지울 때까지 디스크에 남습니다.
 
-Listing columns: id, local `01-02 15:04`, title (first user line, truncated to 60 runes).
+목록 열: id, 로컬 `01-02 15:04`, 제목(첫 사용자 줄, 60 룬으로 자름).
 
-## Export
+## 내보내기
 
 ```bash
-goppi export          # last session as Markdown
+goppi export          # 마지막 세션을 Markdown으로
 goppi export 7a3f2c18
 ```
 
-The export includes:
+내보내기에 포함되는 것:
 
-- title, id, model, workdir, updated timestamp
-- user / assistant turns
-- reasoning in a `<details>` block
-- tool calls as ` ```tool <name> ` fences
+- 제목, id, 모델, workdir, 갱신 시각
+- user / assistant 턴
+- reasoning은 `<details>` 블록
+- 툴 호출은 ` ```tool <name> ` 펜스
 
-Redirect to a file when you want a durable note: `goppi export > session.md`.
+파일로 남기려면 `goppi export > session.md`.
 
-## Storage
+## 저장
 
-Files live under `~/.local/share/goppi/` (or `GOPPI_DATA_DIR`):
+파일은 `~/.local/share/goppi/`(또는 `GOPPI_DATA_DIR`) 아래입니다.
 
 ```text
 sessions/<id>.json
-last                 # pointer to the latest id (plain text)
+last                 # 최신 id 포인터 (일반 텍스트)
 ```
 
-Each JSON file stores `id`, `title`, `updated_at`, `workdir`, `model`, `reasoning_effort`, `prompt_cache_key`, and `messages`. An old `last.json` (pre-named-sessions) is migrated on first `-c`.
+각 JSON은 `id`, `title`, `updated_at`, `workdir`, `model`, `reasoning_effort`, `prompt_cache_key`, `messages`를 담습니다. 예전 `last.json`(이름 붙이기 전)은 첫 `-c`에서 이전합니다.
 
-Ids are 16 hex characters. Title is the first non-empty user message.
+id는 16자리 hex입니다. 제목은 비어 있지 않은 첫 사용자 메시지입니다.
 
-Deleting a session removes its JSON. If it was the `last` pointer, that pointer is removed too.
+세션을 지우면 JSON이 삭제됩니다. 그게 `last` 포인터였으면 포인터도 지웁니다.
 
-## Prompt-cache key
+## Prompt-cache 키
 
-New sessions get `prompt_cache_key=goppi-<16 hex>`. Upstage can reuse the prefix across turns in the same session. `/new` mints a new key; `-c` / `-r` reuse the stored one.
+새 세션은 `prompt_cache_key=goppi-<16 hex>`를 받아서, 현재 백엔드가 같은 세션의 접두사를 재사용할 수 있습니다. `/new`는 새 키를 만들고, `-c` / `-r`은 저장된 키를 다시 씁니다.

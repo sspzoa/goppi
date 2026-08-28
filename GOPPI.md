@@ -1,8 +1,8 @@
 # GOPPI.md
 
-goppi is an Upstage Solar coding-agent harness.
+고삐는 로컬 에이전트 하네스입니다. 바이너리 이름은 `goppi`. 현재 백엔드는 Upstage Solar입니다.
 
-## Build
+## 빌드
 
 ```
 make build
@@ -10,20 +10,20 @@ make test
 ./bin/goppi
 ```
 
-## Layout
+## 레이아웃
 
-- `cmd/goppi` — CLI commands
-- `internal/upstage` — Solar chat + Document Parse/OCR
-- `internal/agent` — tool loop
-- `internal/tools` — files, bash, documents
-- `internal/tui` — fullscreen TUI (Charm Bubble Tea v2)
-- `internal/complete` — slash + shell autocomplete
+- `cmd/goppi` — CLI 커맨드
+- `internal/upstage` — 현재 채팅·문서 HTTP 클라이언트
+- `internal/agent` — 툴 루프
+- `internal/tools` — 파일, bash, 문서
+- `internal/tui` — 풀스크린 TUI (Charm Bubble Tea v2)
+- `internal/complete` — 슬래시·셸 자동완성
 
-Agent, tools, and the Upstage client stay stdlib. The interactive TUI is Charm.
+에이전트, 툴, HTTP 클라이언트는 stdlib. 인터랙티브 TUI는 Charm.
 
-## Notes
+## 메모
 
-- Default model is `solar-pro4` with `reasoning_effort=medium`.
-- Do not commit `credentials.json` or API keys.
-- `GOPPI_TUI=0` forces the line REPL instead of the fullscreen TUI.
-- User-facing docs live in `docs/`. Keep GOPPI.md short — it is loaded on every turn.
+- 기본 모델은 `solar-pro4`, `reasoning_effort=medium`.
+- `credentials.json`과 API 키는 커밋하지 말 것.
+- `GOPPI_TUI=0`이면 풀스크린 대신 라인 REPL.
+- 사용자 문서는 `docs/`. GOPPI.md는 매 턴 읽히니 짧게 유지.

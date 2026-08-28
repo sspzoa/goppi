@@ -75,8 +75,8 @@ func renderBlocks(st styles, blocks []block, width int) string {
 
 func renderEmpty(st styles, width int) string {
 	lines := []string{
-		st.brand.Render("goppi"),
-		st.tag.Render("UPSTAGE SOLAR"),
+		st.brand.Render("고삐"),
+		st.tag.Render("에이전트 하네스"),
 		"",
 		st.mute.Render("메시지를 입력하고 enter"),
 		st.mute.Render("/help  ·  /model  ·  ? 단축키"),
@@ -92,11 +92,11 @@ func renderBlock(st styles, bl block, width int) string {
 	}
 	switch bl.kind {
 	case kindUser:
-		return st.user.Render("you") + "\n" + wrapBody(st.text, bl.body, bodyWidth)
+		return st.user.Render("나") + "\n" + wrapBody(st.text, bl.body, bodyWidth)
 	case kindAssistant:
-		return st.assistant.Render("goppi") + "\n" + wrapBody(st.text, bl.body, bodyWidth)
+		return st.assistant.Render("고삐") + "\n" + wrapBody(st.text, bl.body, bodyWidth)
 	case kindReason:
-		label := "reasoning"
+		label := "생각"
 		if bl.live {
 			label += " …"
 		}

@@ -19,7 +19,7 @@ type Item struct {
 func SlashCmds() []Item {
 	return []Item{
 		{Name: "/help", Summary: "도움말"},
-		{Name: "/model", Summary: "Solar 모델", Arg: true},
+		{Name: "/model", Summary: "모델", Arg: true},
 		{Name: "/effort", Summary: "reasoning 강도", Arg: true},
 		{Name: "/new", Summary: "세션 초기화"},
 		{Name: "/tools", Summary: "등록된 툴"},
@@ -35,17 +35,17 @@ func SlashCmds() []Item {
 
 func CLICommands() []Item {
 	return []Item{
-		{Name: "login", Summary: "Save an Upstage API key"},
-		{Name: "logout", Summary: "Remove the saved key"},
-		{Name: "models", Summary: "List Solar chat models"},
-		{Name: "doctor", Summary: "Check local setup"},
-		{Name: "init", Summary: "Write GOPPI.md"},
-		{Name: "inspect", Summary: "Show resolved config"},
-		{Name: "sessions", Summary: "List and manage sessions"},
-		{Name: "export", Summary: "Export a session as Markdown"},
-		{Name: "completions", Summary: "Shell completion scripts"},
-		{Name: "version", Summary: "Print version"},
-		{Name: "help", Summary: "Show help"},
+		{Name: "login", Summary: "API 키 저장"},
+		{Name: "logout", Summary: "저장된 키 삭제"},
+		{Name: "models", Summary: "채팅 모델 목록"},
+		{Name: "doctor", Summary: "로컬 설정 확인"},
+		{Name: "init", Summary: "GOPPI.md 작성"},
+		{Name: "inspect", Summary: "해석된 설정"},
+		{Name: "sessions", Summary: "세션 목록·관리"},
+		{Name: "export", Summary: "세션 Markdown 내보내기"},
+		{Name: "completions", Summary: "셸 자동완성 스크립트"},
+		{Name: "version", Summary: "버전"},
+		{Name: "help", Summary: "도움말"},
 	}
 }
 

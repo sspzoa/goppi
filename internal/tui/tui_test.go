@@ -26,17 +26,18 @@ func TestBlocksFromMessages(t *testing.T) {
 func TestRenderEmptyHasBrand(t *testing.T) {
 	st := newStyles()
 	out := renderBlocks(st, nil, 60)
-	for _, want := range []string{"goppi", "UPSTAGE SOLAR"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("missing %q\n%s", want, out)
-		}
+	if !strings.Contains(out, "고삐") {
+		t.Fatalf("missing 고삐\n%s", out)
+	}
+	if strings.Contains(out, "UPSTAGE SOLAR") {
+		t.Fatalf("empty view still has exclusive brand\n%s", out)
 	}
 }
 
 func TestRenderUserBlock(t *testing.T) {
 	st := newStyles()
 	out := renderBlock(st, block{kind: kindUser, body: "hello"}, 40)
-	if !strings.Contains(out, "you") || !strings.Contains(out, "hello") {
+	if !strings.Contains(out, "나") || !strings.Contains(out, "hello") {
 		t.Fatalf("bad user block:\n%s", out)
 	}
 }
@@ -56,9 +57,12 @@ func TestViewHasChrome(t *testing.T) {
 	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
 	m.width, m.height = 80, 24
 	out := m.View().Content
-	for _, want := range []string{"goppi", "UPSTAGE SOLAR", "enter", "tab"} {
+	for _, want := range []string{"고삐", "하네스", "enter", "tab"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "UPSTAGE SOLAR") {
+		t.Fatalf("view still has exclusive brand\n%s", out)
 	}
 }
