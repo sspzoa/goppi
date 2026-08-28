@@ -64,10 +64,12 @@ export GOPPI_EFFORT=low          # 선택
 
 세션마다 `prompt_cache_key`를 붙여 멀티턴 캐시를 씁니다. `--continue`는 마지막 키를 이어 받습니다.
 
+채팅은 `stream: true` SSE입니다. `delta.reasoning`과 `delta.content`를 따로 받아 토큰이 오는 대로 그립니다.
+
 ## REPL
 
 ```
-고삐 goppi  0.2.0
+고삐 goppi  0.3.0
   solar    upstage / solar-pro4
   effort   default (solar-pro4는 on)
   workdir  /path

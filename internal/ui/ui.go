@@ -63,18 +63,46 @@ func Reasoning(text string) {
 	if text == "" {
 		return
 	}
-	lines := strings.Split(text, "\n")
-	const max = 12
-	fmt.Fprintf(Out(), "\n%s\n", Paint(Dim, "reasoning"))
-	shown := lines
-	if len(lines) > max {
-		shown = lines[:max]
+	fmt.Fprintf(Out(), "\n%s\n  %s\n", Paint(Dim, "reasoning"), Paint(Dim, text))
+}
+
+type Stream struct {
+	phase string
+}
+
+func NewStream() *Stream { return &Stream{} }
+
+func (s *Stream) Write(reasoning, content string) {
+	if reasoning != "" {
+		if s.phase == "" {
+			fmt.Fprintf(Out(), "\n%s\n", Paint(Dim, "reasoning"))
+			if colorEnabled() {
+				fmt.Fprint(Out(), Dim)
+			}
+			s.phase = "reason"
+		}
+		fmt.Fprint(Out(), reasoning)
 	}
-	for _, line := range shown {
-		fmt.Fprintf(Out(), "  %s\n", Paint(Dim, line))
+	if content != "" {
+		if s.phase == "reason" {
+			if colorEnabled() {
+				fmt.Fprint(Out(), Reset)
+			}
+			fmt.Fprint(Out(), "\n\n")
+		} else if s.phase == "" {
+			fmt.Fprint(Out(), "\n")
+		}
+		s.phase = "content"
+		fmt.Fprint(Out(), content)
 	}
-	if len(lines) > max {
-		fmt.Fprintf(Out(), "  %s\n", Paint(Dim, fmt.Sprintf("… %d more lines", len(lines)-max)))
+}
+
+func (s *Stream) Close() {
+	if s.phase == "reason" && colorEnabled() {
+		fmt.Fprint(Out(), Reset)
+	}
+	if s.phase != "" {
+		fmt.Fprint(Out(), "\n\n")
 	}
 }
 

@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/sspzoa/goppi/internal/upstage"
@@ -18,14 +17,20 @@ func NewSolar(api *upstage.Client) *Solar {
 }
 
 type solarReq struct {
-	Model             string         `json:"model"`
-	Messages          []solarMessage `json:"messages"`
-	Tools             []solarTool    `json:"tools,omitempty"`
-	MaxTokens         int            `json:"max_tokens,omitempty"`
-	ReasoningEffort   string         `json:"reasoning_effort,omitempty"`
-	ToolChoice        string         `json:"tool_choice,omitempty"`
-	ParallelToolCalls *bool          `json:"parallel_tool_calls,omitempty"`
-	PromptCacheKey    string         `json:"prompt_cache_key,omitempty"`
+	Model             string           `json:"model"`
+	Messages          []solarMessage   `json:"messages"`
+	Tools             []solarTool      `json:"tools,omitempty"`
+	MaxTokens         int              `json:"max_tokens,omitempty"`
+	ReasoningEffort   string           `json:"reasoning_effort,omitempty"`
+	ToolChoice        string           `json:"tool_choice,omitempty"`
+	ParallelToolCalls *bool            `json:"parallel_tool_calls,omitempty"`
+	PromptCacheKey    string           `json:"prompt_cache_key,omitempty"`
+	Stream            bool             `json:"stream"`
+	StreamOptions     *solarStreamOpts `json:"stream_options,omitempty"`
+}
+
+type solarStreamOpts struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type solarMessage struct {
@@ -54,34 +59,14 @@ type solarCall struct {
 	} `json:"function"`
 }
 
-type solarResp struct {
-	Choices []struct {
-		Message struct {
-			Role      string      `json:"role"`
-			Content   string      `json:"content"`
-			Reasoning string      `json:"reasoning"`
-			ToolCalls []solarCall `json:"tool_calls"`
-		} `json:"message"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		Details          struct {
-			ReasoningTokens int `json:"reasoning_tokens"`
-		} `json:"completion_tokens_details"`
-	} `json:"usage"`
-	Error *struct {
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
-}
-
 func (c *Solar) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error) {
 	body := solarReq{
 		Model:          req.Model,
 		Messages:       toSolarMessages(req.System, req.Messages),
 		MaxTokens:      req.MaxTokens,
 		PromptCacheKey: req.PromptCacheKey,
+		Stream:         true,
+		StreamOptions:  &solarStreamOpts{IncludeUsage: true},
 	}
 	if upstage.SupportsReasoning(req.Model) && req.ReasoningEffort != "" {
 		body.ReasoningEffort = req.ReasoningEffort
@@ -103,39 +88,45 @@ func (c *Solar) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error)
 		body.Tools = append(body.Tools, item)
 	}
 
-	data, err := c.API.PostJSON(ctx, "/chat/completions", body)
+	rc, err := c.API.PostJSONStream(ctx, "/chat/completions", body)
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "stream_options") {
+		body.StreamOptions = nil
+		rc, err = c.API.PostJSONStream(ctx, "/chat/completions", body)
+	}
 	if err != nil {
 		return ChatResponse{}, err
 	}
-	var parsed solarResp
-	if err := json.Unmarshal(data, &parsed); err != nil {
-		return ChatResponse{}, fmt.Errorf("upstage decode: %w", err)
-	}
-	if parsed.Error != nil {
-		return ChatResponse{}, fmt.Errorf("upstage: %s", parsed.Error.Message)
-	}
-	if len(parsed.Choices) == 0 {
-		return ChatResponse{}, fmt.Errorf("upstage: empty choices")
-	}
+	defer rc.Close()
 
-	choice := parsed.Choices[0]
-	out := ChatResponse{
-		StopReason: choice.FinishReason,
-		Usage: Usage{
-			InputTokens:     parsed.Usage.PromptTokens,
-			OutputTokens:    parsed.Usage.CompletionTokens,
-			ReasoningTokens: parsed.Usage.Details.ReasoningTokens,
-		},
+	var acc streamAcc
+	err = readSSE(rc, func(raw []byte) error {
+		var beforeReason, beforeContent int
+		beforeReason = acc.reasoning.Len()
+		beforeContent = acc.content.Len()
+		if err := acc.apply(raw); err != nil {
+			return err
+		}
+		if req.OnDelta == nil {
+			return nil
+		}
+		d := Delta{}
+		if acc.reasoning.Len() > beforeReason {
+			d.Reasoning = acc.reasoning.String()[beforeReason:]
+		}
+		if acc.content.Len() > beforeContent {
+			d.Content = acc.content.String()[beforeContent:]
+		}
+		if d.Reasoning != "" || d.Content != "" {
+			req.OnDelta(d)
+		}
+		return nil
+	})
+	if err != nil {
+		return ChatResponse{}, err
 	}
-	out.Message.Role = RoleAssistant
-	out.Message.Content = strings.TrimSpace(choice.Message.Content)
-	out.Message.Reasoning = strings.TrimSpace(choice.Message.Reasoning)
-	for _, tc := range choice.Message.ToolCalls {
-		out.Message.ToolCalls = append(out.Message.ToolCalls, ToolCall{
-			ID:    tc.ID,
-			Name:  tc.Function.Name,
-			Input: json.RawMessage(tc.Function.Arguments),
-		})
+	out := acc.response()
+	if out.Message.Role == "" {
+		out.Message.Role = RoleAssistant
 	}
 	return out, nil
 }

@@ -40,6 +40,11 @@ type Usage struct {
 	ReasoningTokens int
 }
 
+type Delta struct {
+	Reasoning string
+	Content   string
+}
+
 type ChatRequest struct {
 	Model           string
 	System          string
@@ -48,6 +53,7 @@ type ChatRequest struct {
 	MaxTokens       int
 	ReasoningEffort string
 	PromptCacheKey  string
+	OnDelta         func(Delta)
 }
 
 type ChatResponse struct {

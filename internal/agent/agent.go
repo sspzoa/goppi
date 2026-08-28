@@ -31,6 +31,7 @@ func (a *Agent) Run(ctx context.Context, user string) error {
 	a.Messages = append(a.Messages, provider.Message{Role: provider.RoleUser, Content: user})
 
 	for turn := 0; turn < a.Cfg.MaxTurns; turn++ {
+		stream := ui.NewStream()
 		resp, err := a.Client.Chat(ctx, provider.ChatRequest{
 			Model:           a.Cfg.Model,
 			System:          systemPrompt(a.Cfg.WorkDir),
@@ -39,17 +40,15 @@ func (a *Agent) Run(ctx context.Context, user string) error {
 			MaxTokens:       a.Cfg.MaxTokens,
 			ReasoningEffort: a.Cfg.ReasoningEffort,
 			PromptCacheKey:  a.Cfg.PromptCacheKey,
+			OnDelta: func(d provider.Delta) {
+				stream.Write(d.Reasoning, d.Content)
+			},
 		})
+		stream.Close()
 		if err != nil {
 			return err
 		}
 		a.Messages = append(a.Messages, resp.Message)
-		if resp.Message.Reasoning != "" {
-			ui.Reasoning(resp.Message.Reasoning)
-		}
-		if strings.TrimSpace(resp.Message.Content) != "" {
-			ui.Assistant(resp.Message.Content)
-		}
 		ui.Usage(resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.ReasoningTokens)
 		if len(resp.Message.ToolCalls) == 0 {
 			return nil

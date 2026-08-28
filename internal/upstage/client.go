@@ -80,6 +80,35 @@ func SupportsReasoning(model string) bool {
 }
 
 func (c *Client) PostJSON(ctx context.Context, path string, body any) ([]byte, error) {
+	resp, err := c.postJSON(ctx, path, body, false)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("upstage %s: %s", resp.Status, decodeError(data))
+	}
+	return data, nil
+}
+
+func (c *Client) PostJSONStream(ctx context.Context, path string, body any) (io.ReadCloser, error) {
+	resp, err := c.postJSON(ctx, path, body, true)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		data, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("upstage %s: %s", resp.Status, decodeError(data))
+	}
+	return resp.Body, nil
+}
+
+func (c *Client) postJSON(ctx context.Context, path string, body any, stream bool) (*http.Response, error) {
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -90,7 +119,14 @@ func (c *Client) PostJSON(ctx context.Context, path string, body any) ([]byte, e
 	}
 	req.Header.Set("content-type", "application/json")
 	req.Header.Set("authorization", "Bearer "+c.APIKey)
-	return c.do(req)
+	if stream {
+		req.Header.Set("accept", "text/event-stream")
+	}
+	client := c.HTTP
+	if stream {
+		client = &http.Client{Timeout: 0, Transport: c.HTTP.Transport}
+	}
+	return client.Do(req)
 }
 
 func (c *Client) PostMultipart(ctx context.Context, path string, fields map[string]string, filePath string) ([]byte, error) {
