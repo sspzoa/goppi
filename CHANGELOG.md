@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2 — 2026-08-28
+
+- Product docs: README, user guide, TUI screenshot, wordmark
+
 ## 0.5.1 — 2026-08-28
 
 - TUI: `tab` / `shift+tab` complete slash commands, models, and effort

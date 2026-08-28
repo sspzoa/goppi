@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 280" role="img" aria-label="goppi Upstage Solar">
+  <rect width="720" height="280" rx="20" fill="#0A0D14"/>
+  <g fill="none" stroke="#5B52FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M118 86c0-28 22-50 50-50h8c28 0 50 22 50 50v52c0 36-26 62-58 62s-58-26-58-62z"/>
+    <circle cx="176" cy="200" r="14"/>
+    <path d="M118 118h-22M226 118h22"/>
+    <path d="M104 110v16M240 110v16"/>
+  </g>
+  <text x="292" y="132" fill="#F4F5F7" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="72" font-weight="700" letter-spacing="-2">goppi</text>
+  <rect x="294" y="150" width="72" height="5" rx="2.5" fill="#5B52FF"/>
+  <text x="294" y="186" fill="#C9CBD4" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="16" font-weight="600" letter-spacing="4">UPSTAGE SOLAR</text>
+</svg>

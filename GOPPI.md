@@ -26,3 +26,4 @@ Agent, tools, and the Upstage client stay stdlib. The interactive TUI is Charm.
 - Default model is `solar-pro4` with `reasoning_effort=medium`.
 - Do not commit `credentials.json` or API keys.
 - `GOPPI_TUI=0` forces the line REPL instead of the fullscreen TUI.
+- User-facing docs live in `docs/`. Keep GOPPI.md short — it is loaded on every turn.

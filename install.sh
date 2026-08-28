@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install goppi with Go. Requires Go 1.24+.
+# Install goppi with Go. Requires Go 1.27+.
 #   curl -fsSL https://raw.githubusercontent.com/sspzoa/goppi/main/install.sh | bash
 
 if ! command -v go >/dev/null 2>&1; then
