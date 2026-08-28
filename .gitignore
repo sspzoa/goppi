@@ -1,0 +1,8 @@
+/bin/
+/goppi
+dist/
+.goppi/
+*.exe
+*.test
+*.out
+vendor/
