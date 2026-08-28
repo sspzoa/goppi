@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 	"github.com/sspzoa/goppi/internal/provider"
@@ -22,9 +23,10 @@ const (
 
 type block struct {
 	kind  kind
-	title string
-	body  string
-	state string
+	title string // tool name
+	body  string // text, or tool detail
+	note  string // tool result summary / error
+	state string // tool: running | ok | fail
 	live  bool
 }
 
@@ -56,88 +58,145 @@ func blocksFromMessages(msgs []provider.Message) []block {
 	return out
 }
 
-func renderBlocks(st styles, blocks []block, width int) string {
+// compact kinds stack with a single newline instead of a blank line.
+func compact(k kind) bool { return k == kindTool || k == kindSystem }
+
+func renderBlocks(st styles, blocks []block, width int, spin string, showReason bool) string {
 	if width < 20 {
 		width = 20
-	}
-	if len(blocks) == 0 {
-		return renderEmpty(st, width)
 	}
 	var b strings.Builder
 	for i, bl := range blocks {
 		if i > 0 {
-			b.WriteString("\n\n")
+			if compact(blocks[i-1].kind) && compact(bl.kind) {
+				b.WriteString("\n")
+			} else {
+				b.WriteString("\n\n")
+			}
 		}
-		b.WriteString(renderBlock(st, bl, width))
+		b.WriteString(renderBlock(st, bl, width, spin, showReason))
 	}
 	return b.String()
 }
 
-func renderEmpty(st styles, width int) string {
+func renderWelcome(st styles, width, height int, model, effort, workdir string) string {
+	if height < 8 {
+		height = 8
+	}
 	lines := []string{
 		st.brand.Render("고삐"),
 		st.tag.Render("에이전트 하네스"),
 		"",
-		st.mute.Render("메시지를 입력하고 enter"),
-		st.mute.Render("/help  ·  /model  ·  ? 단축키"),
+		st.mute.Render(model + " · " + effort),
+		st.mute.Render(workdir),
+		"",
+		st.text.Render("메시지를 입력하고 enter"),
+		st.mute.Render("/help 명령  ·  ? 단축키"),
 	}
-	inner := strings.Join(lines, "\n")
-	return lipgloss.Place(width, 10, lipgloss.Center, lipgloss.Center, inner)
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, strings.Join(lines, "\n"))
 }
 
-func renderBlock(st styles, bl block, width int) string {
-	bodyWidth := width
-	if bodyWidth < 8 {
-		bodyWidth = 8
-	}
+func renderBlock(st styles, bl block, width int, spin string, showReason bool) string {
 	switch bl.kind {
 	case kindUser:
-		return st.user.Render("나") + "\n" + wrapBody(st.text, bl.body, bodyWidth)
+		return gutter(st.brand.Render("❯"), bl.body, st.text, width)
 	case kindAssistant:
-		return st.assistant.Render("고삐") + "\n" + wrapBody(st.text, bl.body, bodyWidth)
+		return gutter(st.tag.Render("●"), bl.body, st.text, width)
 	case kindReason:
-		label := "생각"
-		if bl.live {
-			label += " …"
-		}
-		return st.mute.Render(label) + "\n" + wrapBody(st.reason, bl.body, bodyWidth)
+		return renderReason(st, bl, width, showReason)
 	case kindTool:
-		return renderTool(st, bl, bodyWidth)
+		return renderTool(st, bl, width, spin)
 	case kindSystem:
-		return st.mute.Render("· " + bl.body)
+		return gutter(st.mute.Render("·"), bl.body, st.mute, width)
 	case kindError:
-		return st.err.Render("error") + "  " + st.mute.Render(bl.body)
+		return gutter(st.err.Render("✗"), bl.body, st.err, width)
 	default:
-		return wrapBody(st.text, bl.body, bodyWidth)
+		return gutter(" ", bl.body, st.text, width)
 	}
 }
 
-func renderTool(st styles, bl block, width int) string {
-	mark := st.mute.Render("·")
-	state := bl.state
-	switch state {
+func renderReason(st styles, bl block, width int, expanded bool) string {
+	body := strings.TrimSpace(bl.body)
+	if bl.live {
+		head := st.mute.Render("✻ ") + st.reason.Render("생각 중…")
+		tail := lastLines(body, 3)
+		if tail == "" {
+			return head
+		}
+		return head + "\n" + indentWrap(st.reason, tail, width)
+	}
+	if !expanded {
+		n := utf8.RuneCountInString(body)
+		return st.mute.Render(fmt.Sprintf("✻ 생각 · %d자 · ctrl+o 펼치기", n))
+	}
+	return gutter(st.mute.Render("✻"), body, st.reason, width)
+}
+
+func renderTool(st styles, bl block, width int, spin string) string {
+	var mark string
+	switch bl.state {
 	case "running":
-		mark = st.tag.Render("▸")
-	case "ok":
-		mark = st.ok.Render("✓")
+		mark = spin
+		if mark == "" {
+			mark = st.spin.Render("⠿")
+		}
 	case "fail":
 		mark = st.err.Render("✗")
-		state = "fail"
 	default:
-		state = "ok"
+		mark = st.ok.Render("✓")
 	}
-	head := fmt.Sprintf("%s %s  %s", mark, st.brand.Render(bl.title), st.mute.Render(state))
-	inner := head
-	if strings.TrimSpace(bl.body) != "" {
-		inner += "\n" + wrapBody(st.mute, bl.body, max(width-4, 8))
+	head := mark + " " + st.brand.Render(bl.title)
+	if d := firstLine(bl.body); d != "" {
+		room := width - lipgloss.Width(head) - 3
+		if room > 8 {
+			head += "  " + st.mute.Render(fit(d, room))
+		}
 	}
-	return st.card.Width(width).Render(inner)
+	out := head
+	if note := strings.TrimSpace(bl.note); note != "" {
+		out += "\n" + indentWrap(st.mute, note, width)
+	}
+	return out
 }
 
-func wrapBody(style lipgloss.Style, text string, width int) string {
-	text = strings.TrimRight(text, "\n")
-	if text == "" {
-		return ""
+// gutter renders a 1-char mark and hanging-indents the wrapped body under it.
+func gutter(mark, body string, style lipgloss.Style, width int) string {
+	w := max(width-2, 8)
+	wrapped := style.Width(w).Render(strings.TrimRight(body, "\n"))
+	lines := strings.Split(wrapped, "\n")
+	var b strings.Builder
+	for i, ln := range lines {
+		if i == 0 {
+			b.WriteString(mark + " " + ln)
+		} else {
+			b.WriteString("\n  " + ln)
+		}
 	}
-	return style.Width(width).Render(text)
+	return b.String()
+}
+
+func indentWrap(style lipgloss.Style, text string, width int) string {
+	w := max(width-2, 8)
+	wrapped := style.Width(w).Render(strings.TrimRight(text, "\n"))
+	lines := strings.Split(wrapped, "\n")
+	for i := range lines {
+		lines[i] = "  " + lines[i]
+	}
+	return strings.Join(lines, "\n")
+}
+
+func firstLine(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
+func lastLines(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) <= n {
+		return strings.Join(lines, "\n")
+	}
+	return strings.Join(lines[len(lines)-n:], "\n")
 }

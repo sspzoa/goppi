@@ -60,20 +60,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if last := m.last(); last != nil && last.kind == kindTool {
 			if msg.err != nil {
 				last.state = "fail"
-				if last.body != "" {
-					last.body += "\n" + msg.err.Error()
-				} else {
-					last.body = msg.err.Error()
-				}
+				last.note = msg.err.Error()
 			} else {
 				last.state = "ok"
-				if msg.summary != "" {
-					if last.body != "" {
-						last.body += "\n" + msg.summary
-					} else {
-						last.body = msg.summary
-					}
-				}
+				last.note = msg.summary
 			}
 		}
 		return m, nil
@@ -136,6 +126,7 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.overlay = overlayQuit
+		m.input.Blur()
 		return m, nil
 	case "ctrl+d":
 		if strings.TrimSpace(m.input.Value()) == "" && !m.busy {
@@ -146,6 +137,9 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.resetSession()
 			return m, nil
 		}
+	case "ctrl+o":
+		m.showReason = !m.showReason
+		return m, nil
 	case "ctrl+l":
 		m.stick = true
 		m.vp.GotoBottom()
@@ -162,7 +156,8 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case "?":
 		if strings.TrimSpace(m.input.Value()) == "" {
-			m.overlay = overlayHelp
+			m.push(block{kind: kindSystem, body: helpText()})
+			m.stick = true
 			return m, nil
 		}
 	case "tab":
@@ -181,7 +176,11 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if len(m.suggest) > 0 && !complete.Ready(m.input.Value()) {
 			m.applySuggest(0)
-			return m, nil
+			// 선택으로 라인이 완성되면 enter 한 번으로 바로 실행한다.
+			if !complete.Ready(m.input.Value()) {
+				m.preselectCurrent()
+				return m, nil
+			}
 		}
 		return m.submit()
 	case "up":
@@ -213,11 +212,6 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) handleOverlayKey(k string) (tea.Model, tea.Cmd) {
 	switch m.overlay {
-	case overlayHelp:
-		if k == "esc" || k == "?" || k == "enter" || k == "ctrl+c" || k == "q" {
-			m.overlay = overlayNone
-			_ = m.input.Focus()
-		}
 	case overlayQuit:
 		switch k {
 		case "y", "enter":
@@ -232,22 +226,6 @@ func (m *model) handleOverlayKey(k string) (tea.Model, tea.Cmd) {
 			m.replyPerm(true)
 		case "n", "esc", "ctrl+c":
 			m.replyPerm(false)
-		}
-	case overlayModel, overlayEffort:
-		switch k {
-		case "esc", "ctrl+c":
-			m.overlay = overlayNone
-			_ = m.input.Focus()
-		case "up", "k":
-			if m.pickIdx > 0 {
-				m.pickIdx--
-			}
-		case "down", "j":
-			if m.pickIdx < len(m.picks)-1 {
-				m.pickIdx++
-			}
-		case "enter":
-			m.applyPick()
 		}
 	}
 	return m, nil
@@ -267,22 +245,6 @@ func (m *model) replyPerm(ok bool) {
 	} else {
 		_ = m.input.Focus()
 	}
-}
-
-func (m *model) applyPick() {
-	if m.pickIdx < 0 || m.pickIdx >= len(m.picks) {
-		m.overlay = overlayNone
-		return
-	}
-	id := m.picks[m.pickIdx].id
-	switch m.overlay {
-	case overlayModel:
-		m.setModel(id)
-	case overlayEffort:
-		m.setEffort(id)
-	}
-	m.overlay = overlayNone
-	_ = m.input.Focus()
 }
 
 func (m *model) syncSuggest() {
@@ -350,7 +312,7 @@ func (m *model) startTurn(prompt string) tea.Cmd {
 	turnCtx, cancel := context.WithCancel(m.ctx)
 	m.turnCancel = cancel
 	m.busy = true
-	m.phase = "thinking"
+	m.phase = "생각 중"
 	m.input.Blur()
 	a := m.agent
 	return func() tea.Msg {
@@ -374,7 +336,7 @@ func (m *model) quit() tea.Cmd {
 
 func (m *model) applyDelta(reasoning, content string) {
 	if reasoning != "" {
-		m.phase = "reasoning"
+		m.phase = "생각 중"
 		if last := m.last(); last != nil && last.kind == kindReason && last.live {
 			last.body += reasoning
 		} else {
@@ -382,7 +344,7 @@ func (m *model) applyDelta(reasoning, content string) {
 		}
 	}
 	if content != "" {
-		m.phase = "writing"
+		m.phase = "쓰는 중"
 		if last := m.last(); last != nil && last.kind == kindAssistant && last.live {
 			last.body += content
 		} else {
@@ -431,9 +393,11 @@ func (m *model) runSlash(line string) tea.Cmd {
 	arg := strings.TrimSpace(strings.TrimPrefix(line, cmd))
 	switch cmd {
 	case "/help", "/?":
-		m.overlay = overlayHelp
+		m.push(block{kind: kindSystem, body: helpText()})
+		m.stick = true
 	case "/quit", "/exit", "/q":
 		m.overlay = overlayQuit
+		m.input.Blur()
 	case "/new", "/clear":
 		m.resetSession()
 	case "/tools":
@@ -444,13 +408,13 @@ func (m *model) runSlash(line string) tea.Cmd {
 		m.showStatus()
 	case "/model":
 		if arg == "" {
-			m.openModelPicker()
+			m.startArgPick("/model ")
 			return nil
 		}
 		m.setModel(arg)
 	case "/effort":
 		if arg == "" {
-			m.openEffortPicker()
+			m.startArgPick("/effort ")
 			return nil
 		}
 		m.setEffort(arg)
@@ -469,28 +433,37 @@ func (m *model) resetSession() {
 	m.push(block{kind: kindSystem, body: "세션을 초기화했습니다. " + shortID(m.agent.SessionID)})
 }
 
-func (m *model) openModelPicker() {
-	m.picks = modelsForPicker()
-	m.pickIdx = 0
-	for i, it := range m.picks {
-		if it.id == m.agent.Cfg.Model {
-			m.pickIdx = i
-			break
-		}
-	}
-	m.overlay = overlayModel
+// startArgPick fills the input with a slash command prefix so the
+// autocomplete list becomes the picker.
+func (m *model) startArgPick(prefix string) {
+	m.input.SetValue(prefix)
+	m.input.MoveToEnd()
+	m.syncSuggest()
+	m.preselectCurrent()
 }
 
-func (m *model) openEffortPicker() {
-	m.picks = effortsForPicker()
-	m.pickIdx = 0
-	for i, it := range m.picks {
-		if it.id == m.agent.Cfg.ReasoningEffort {
-			m.pickIdx = i
+// preselectCurrent moves the suggestion cursor to the currently
+// configured value when picking an argument for /model or /effort.
+func (m *model) preselectCurrent() {
+	fields := strings.Fields(m.input.Value())
+	if len(fields) != 1 {
+		return
+	}
+	var current string
+	switch fields[0] {
+	case "/model":
+		current = m.agent.Cfg.Model
+	case "/effort":
+		current = m.agent.Cfg.ReasoningEffort
+	default:
+		return
+	}
+	for i, it := range m.suggest {
+		if it.Name == current {
+			m.suggestIdx = i
 			break
 		}
 	}
-	m.overlay = overlayEffort
 }
 
 func (m *model) setModel(id string) {

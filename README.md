@@ -69,7 +69,7 @@ goppi --always-approve -p "go test ./..."
 |--------|------|
 | [시작하기](docs/user-guide/getting-started.md) | 설치, API 키, 첫 TUI 세션 |
 | [인증](docs/user-guide/authentication.md) | `login` / `logout`, 환경 변수 |
-| [TUI](docs/user-guide/tui.md) | 키, 슬래시 명령, 오버레이 |
+| [TUI](docs/user-guide/tui.md) | 키, 슬래시 명령, 패널 |
 | [CLI](docs/user-guide/cli.md) | 커맨드, 플래그, 셸 자동완성 |
 | [설정](docs/user-guide/configuration.md) | 파일, 모델, `GOPPI.md` |
 | [세션](docs/user-guide/sessions.md) | `-c` / `-r`, 내보내기 |

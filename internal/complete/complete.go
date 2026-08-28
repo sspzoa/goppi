@@ -164,7 +164,11 @@ func Ready(line string) bool {
 	if cmd == nil {
 		return len(Query(line)) == 0
 	}
-	if cmd.Arg && len(fields) >= 2 {
+	if cmd.Arg {
+		// 인자가 필요한 명령은 인자를 골라야 실행할 수 있다.
+		if len(fields) < 2 {
+			return false
+		}
 		arg := fields[1]
 		for _, it := range Query(line) {
 			if it.Name == arg {

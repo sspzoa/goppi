@@ -55,8 +55,8 @@ func TestReady(t *testing.T) {
 	if !Ready("/help") {
 		t.Fatal("/help should be ready")
 	}
-	if !Ready("/model") {
-		t.Fatal("/model should be ready (picker)")
+	if Ready("/model") {
+		t.Fatal("/model should wait for an argument")
 	}
 	if Ready("/model so") {
 		t.Fatal("/model so should wait for a full id")

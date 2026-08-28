@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"strings"
 	"sync"
 
@@ -17,18 +18,14 @@ import (
 	"github.com/sspzoa/goppi/internal/complete"
 	"github.com/sspzoa/goppi/internal/config"
 	"github.com/sspzoa/goppi/internal/ui"
-	"github.com/sspzoa/goppi/internal/upstage"
 )
 
 type overlay int
 
 const (
 	overlayNone overlay = iota
-	overlayHelp
 	overlayQuit
 	overlayPerm
-	overlayModel
-	overlayEffort
 )
 
 type permAskMsg struct {
@@ -46,8 +43,6 @@ type toolDoneMsg struct {
 }
 type doneMsg struct{ err, save error }
 
-type pickItem struct{ id, summary string }
-
 type model struct {
 	ctx        context.Context
 	agent      *agent.Agent
@@ -57,6 +52,7 @@ type model struct {
 	turnCancel context.CancelFunc
 
 	width, height int
+	vpH           int
 	st            styles
 	vp            viewport.Model
 	input         textarea.Model
@@ -65,11 +61,8 @@ type model struct {
 	blocks  []block
 	overlay overlay
 	perm    *permAskMsg
-	picks   []pickItem
-	pickIdx int
-	pickFor overlay
 
-	busy, stick              bool
+	busy, stick, showReason  bool
 	phase                    string
 	inTok, outTok, reasonTok int
 	hist                     []string
@@ -98,11 +91,11 @@ func newModel(ctx context.Context, a *agent.Agent) *model {
 	ta.ShowLineNumbers = false
 	ta.SetPromptFunc(2, func(info textarea.PromptInfo) string {
 		if info.LineNumber == 0 {
-			return "› "
+			return "❯ "
 		}
 		return "  "
 	})
-	ta.SetHeight(3)
+	ta.SetHeight(1)
 	ta.CharLimit = 0
 	ta.SetVirtualCursor(true)
 	km := textarea.DefaultKeyMap()
@@ -150,7 +143,7 @@ func applyInputStyles(ta *textarea.Model, st styles) {
 	s.Blurred.Text = st.mute
 	s.Blurred.Placeholder = st.mute
 	s.Blurred.CursorLine = lipgloss.NewStyle()
-	s.Cursor.Color = colViolet
+	s.Cursor.Color = colBrand
 	ta.SetStyles(s)
 }
 
@@ -173,66 +166,112 @@ func (m *model) View() tea.View {
 
 func (m *model) render() string {
 	header := m.renderHeader()
+	sep := m.st.sep.Render(strings.Repeat("─", max(m.width, 1)))
 	footer := m.renderFooter()
-	input := m.renderInput()
+	action := m.renderAction() // 입력창 또는 패널
 	suggest := m.renderSuggest()
-	chrome := lipgloss.Height(header) + lipgloss.Height(input) + lipgloss.Height(footer) + lipgloss.Height(suggest) + 2
+
+	chrome := lipgloss.Height(header) + 1 + lipgloss.Height(action) + lipgloss.Height(footer)
+	if suggest != "" {
+		chrome += lipgloss.Height(suggest)
+	}
 	vpH := m.height - chrome
 	if vpH < 3 {
 		vpH = 3
 	}
+	m.vpH = vpH
 	m.vp.SetWidth(m.width)
 	m.vp.SetHeight(vpH)
 	m.refreshTranscript()
 
-	body := m.vp.View()
-	if m.overlay != overlayNone {
-		body = lipgloss.Place(m.width, vpH, lipgloss.Center, lipgloss.Center, m.renderOverlay())
-	}
-
-	sep := m.st.sep.Render(strings.Repeat("─", max(m.width, 1)))
-	parts := []string{header, sep, body}
+	parts := []string{header, sep, m.vp.View()}
 	if suggest != "" {
 		parts = append(parts, suggest)
 	}
-	parts = append(parts, input, footer)
+	parts = append(parts, action, footer)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 func (m *model) renderHeader() string {
-	left := m.st.brand.Render("고삐") + "  " + m.st.tag.Render("하네스")
+	left := m.st.brand.Render("고삐") + " " + m.st.tag.Render("하네스")
 	right := m.st.mute.Render("v" + config.Version)
-	top := lipgloss.JoinHorizontal(lipgloss.Top, left, spacer(m.width-lipgloss.Width(left)-lipgloss.Width(right)), right)
 
 	effort := m.agent.Cfg.ReasoningEffort
 	if m.agent.Cfg.Model == "solar-mini" {
 		effort = "n/a"
 	}
-	parts := []string{
-		m.agent.Cfg.Model,
-		effort,
-		ui.ShortPath(m.agent.Cfg.WorkDir),
-	}
+	parts := []string{m.agent.Cfg.Model, effort, ui.ShortPath(m.agent.Cfg.WorkDir)}
 	if m.agent.SessionID != "" {
 		parts = append(parts, shortID(m.agent.SessionID))
 	}
 	if m.inTok+m.outTok > 0 {
 		parts = append(parts, fmt.Sprintf("%d tok", m.inTok+m.outTok))
 	}
-	meta := m.st.mute.Render(strings.Join(parts, "  ·  "))
-	return top + "\n" + fit(meta, m.width)
+	room := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 4
+	meta := m.st.mute.Render(fit(strings.Join(parts, " · "), max(room, 0)))
+
+	gap := m.width - lipgloss.Width(left) - lipgloss.Width(meta) - lipgloss.Width(right) - 2
+	return left + "  " + meta + spacer(gap) + right
+}
+
+// renderAction renders the input box, or the panel that replaces it
+// while a decision (permission, picker, quit) is pending.
+func (m *model) renderAction() string {
+	switch m.overlay {
+	case overlayPerm:
+		return m.renderPermPanel()
+	case overlayQuit:
+		return m.renderQuitPanel()
+	}
+	return m.renderInput()
 }
 
 func (m *model) renderInput() string {
-	m.input.SetWidth(max(m.width-2, 10))
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colViolet).
-		Width(m.width)
-	if m.busy || m.overlay != overlayNone {
-		box = box.BorderForeground(colLine)
+	h := m.input.LineCount()
+	if h < 1 {
+		h = 1
 	}
-	return box.Render(m.input.View())
+	if h > 5 {
+		h = 5
+	}
+	m.input.SetHeight(h)
+	m.input.SetWidth(max(m.width-2, 10))
+	border := colBrand
+	if m.busy {
+		border = colLine
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(border).
+		Width(m.width - 2).
+		Render(m.input.View())
+}
+
+func (m *model) panel(border color.Color, lines ...string) string {
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(border).
+		Padding(0, 1).
+		Width(m.width - 2).
+		Render(strings.Join(lines, "\n"))
+}
+
+func (m *model) renderPermPanel() string {
+	name, detail := "", ""
+	if m.perm != nil {
+		name, detail = m.perm.name, m.perm.detail
+	}
+	lines := []string{
+		m.st.warn.Render("툴 실행을 허용할까요?") + "  " + m.st.brand.Render(name),
+	}
+	if d := firstLine(detail); d != "" {
+		lines = append(lines, m.st.mute.Render(fit(d, max(m.width-6, 8))))
+	}
+	return m.panel(colWarn, lines...)
+}
+
+func (m *model) renderQuitPanel() string {
+	return m.panel(colBrand, m.st.brand.Render("종료할까요?"))
 }
 
 func (m *model) renderSuggest() string {
@@ -249,11 +288,11 @@ func (m *model) renderSuggest() string {
 	for i := start; i < end; i++ {
 		it := m.suggest[i]
 		name := fmt.Sprintf("%-12s", it.Name)
-		line := name + "  " + it.Summary
+		line := name + " " + it.Summary
 		if i == m.suggestIdx {
-			b.WriteString(m.st.brand.Render("● " + fit(line, max(m.width-2, 8))))
+			b.WriteString(" " + m.st.brand.Render("❯ "+fit(line, max(m.width-4, 8))))
 		} else {
-			b.WriteString(m.st.mute.Render("  " + fit(line, max(m.width-2, 8))))
+			b.WriteString(" " + m.st.mute.Render("  "+fit(line, max(m.width-4, 8))))
 		}
 		if i+1 < end {
 			b.WriteByte('\n')
@@ -264,16 +303,21 @@ func (m *model) renderSuggest() string {
 
 func (m *model) renderFooter() string {
 	if m.status != "" {
-		return m.st.warn.Render(m.status)
+		return " " + m.st.warn.Render(m.status)
 	}
-	if m.busy {
-		return m.st.brand.Render(m.spin.View()) + " " + m.st.mute.Render(m.phaseLabel()) +
-			m.st.mute.Render("   ctrl+c 취소")
+	if m.busy && m.overlay == overlayNone {
+		return " " + m.spin.View() + " " + m.st.mute.Render(m.phaseLabel()+"   ctrl+c 취소")
+	}
+	switch m.overlay {
+	case overlayPerm:
+		return " " + m.st.hint.Render("y 허용  ·  n / esc 거부")
+	case overlayQuit:
+		return " " + m.st.hint.Render("y / enter 종료  ·  n / esc 취소")
 	}
 	if len(m.suggest) > 0 {
-		return m.st.hint.Render("tab 완성  ·  ↑↓ 선택  ·  enter 실행")
+		return " " + m.st.hint.Render("tab 완성  ·  ↑↓ 선택  ·  enter 실행")
 	}
-	return m.st.hint.Render("enter 보내기  ·  / 명령  ·  tab 완성  ·  ? 도움말")
+	return " " + m.st.hint.Render("enter 보내기  ·  / 명령  ·  tab 완성  ·  ? 도움말")
 }
 
 func (m *model) phaseLabel() string {
@@ -283,71 +327,14 @@ func (m *model) phaseLabel() string {
 	return "생각 중"
 }
 
-func (m *model) renderOverlay() string {
-	switch m.overlay {
-	case overlayHelp:
-		return m.st.modal.Width(min(m.width-4, 56)).Render(helpText())
-	case overlayQuit:
-		return m.st.modal.Width(min(m.width-4, 40)).Render(
-			m.st.brand.Render("종료할까요?") + "\n\n" + m.st.mute.Render("enter / y  종료    n / esc  취소"),
-		)
-	case overlayPerm:
-		name, detail := "", ""
-		if m.perm != nil {
-			name, detail = m.perm.name, m.perm.detail
-		}
-		body := m.st.warn.Render("allow tool?") + "\n\n" +
-			m.st.brand.Render(name) + "\n" +
-			m.st.mute.Render(detail) + "\n\n" +
-			m.st.mute.Render("y 허용    n / esc 거부")
-		return m.st.modal.Width(min(m.width-4, 64)).Render(body)
-	case overlayModel, overlayEffort:
-		return m.renderPicker()
-	default:
-		return ""
-	}
-}
-
-func (m *model) renderPicker() string {
-	var b strings.Builder
-	title := "model"
-	if m.overlay == overlayEffort {
-		title = "effort"
-	}
-	b.WriteString(m.st.brand.Render(title))
-	b.WriteString("\n\n")
-	for i, it := range m.picks {
-		mark := "  "
-		line := it.id
-		if it.summary != "" {
-			line += "  " + it.summary
-		}
-		if i == m.pickIdx {
-			mark = m.st.brand.Render("● ")
-			line = m.st.brand.Render(it.id)
-			if it.summary != "" {
-				line += "  " + m.st.mute.Render(it.summary)
-			}
-		} else {
-			mark = m.st.mute.Render("○ ")
-			line = m.st.text.Render(it.id)
-			if it.summary != "" {
-				line += "  " + m.st.mute.Render(it.summary)
-			}
-		}
-		b.WriteString(mark + line + "\n")
-	}
-	b.WriteString("\n" + m.st.mute.Render("j/k 이동  ·  enter 선택  ·  esc 닫기"))
-	return m.st.modal.Width(min(m.width-4, 64)).Render(strings.TrimRight(b.String(), "\n"))
-}
-
 func helpText() string {
 	return strings.TrimSpace(`
 단축키
   enter        보내기
   tab          명령 자동완성
-  ↑↓           제안 선택
+  ↑↓           제안 선택 / 입력 히스토리
   ctrl+j       줄바꿈
+  ctrl+o       생각(reasoning) 펼치기/접기
   ctrl+c       생성 취소 / 종료
   pgup pgdn    스크롤
   ctrl+l       맨 아래로
@@ -362,12 +349,21 @@ func helpText() string {
   /tools       등록된 툴
   /sessions    최근 세션
   /status      현재 설정
-  /quit        종료
-`)
+  /quit        종료`)
 }
 
 func (m *model) refreshTranscript() {
-	content := renderBlocks(m.st, m.blocks, max(m.width, 20))
+	var content string
+	if len(m.blocks) == 0 {
+		effort := m.agent.Cfg.ReasoningEffort
+		if m.agent.Cfg.Model == "solar-mini" {
+			effort = "n/a"
+		}
+		content = renderWelcome(m.st, m.width, m.vpH, m.agent.Cfg.Model, effort, ui.ShortPath(m.agent.Cfg.WorkDir))
+	} else {
+		body := renderBlocks(m.st, m.blocks, max(m.width-2, 20), m.spin.View(), m.showReason)
+		content = lipgloss.NewStyle().PaddingLeft(1).Render(body)
+	}
 	follow := m.stick || m.vp.AtBottom()
 	m.vp.SetContent(content)
 	if follow {
@@ -458,18 +454,3 @@ func (b *bridge) ToolDone(summary string, err error) {
 	b.send(toolDoneMsg{summary: summary, err: err})
 }
 
-func modelsForPicker() []pickItem {
-	out := make([]pickItem, 0, len(upstage.ChatModels))
-	for _, m := range upstage.ChatModels {
-		out = append(out, pickItem{id: m.ID, summary: m.Summary})
-	}
-	return out
-}
-
-func effortsForPicker() []pickItem {
-	out := make([]pickItem, 0, len(config.Efforts))
-	for _, e := range config.Efforts {
-		out = append(out, pickItem{id: e})
-	}
-	return out
-}
