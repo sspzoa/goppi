@@ -19,6 +19,8 @@ type Agent struct {
 	Tools     *tools.Registry
 	Messages  []provider.Message
 	SessionID string
+	Quiet     bool
+	LastUsage provider.Usage
 }
 
 func New(cfg config.Config, client provider.Client, registry *tools.Registry) *Agent {
@@ -36,7 +38,7 @@ func (a *Agent) Run(ctx context.Context, user string) error {
 	for turn := 0; turn < a.Cfg.MaxTurns; turn++ {
 		stream := ui.NewStream()
 		extra, _ := instructions.Load(a.Cfg.WorkDir)
-		resp, err := a.Client.Chat(ctx, provider.ChatRequest{
+		req := provider.ChatRequest{
 			Model:           a.Cfg.Model,
 			System:          systemPrompt(a.Cfg.WorkDir, extra),
 			Messages:        a.Messages,
@@ -44,22 +46,30 @@ func (a *Agent) Run(ctx context.Context, user string) error {
 			MaxTokens:       a.Cfg.MaxTokens,
 			ReasoningEffort: a.Cfg.ReasoningEffort,
 			PromptCacheKey:  a.Cfg.PromptCacheKey,
-			OnDelta: func(d provider.Delta) {
+		}
+		if !a.Quiet {
+			req.OnDelta = func(d provider.Delta) {
 				stream.Write(d.Reasoning, d.Content)
-			},
-		})
+			}
+		}
+		resp, err := a.Client.Chat(ctx, req)
 		stream.Close()
 		if err != nil {
 			return err
 		}
 		a.Messages = append(a.Messages, resp.Message)
-		ui.Usage(resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.ReasoningTokens)
+		a.LastUsage = resp.Usage
+		if !a.Quiet {
+			ui.Usage(resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.ReasoningTokens)
+		}
 		if len(resp.Message.ToolCalls) == 0 {
 			return nil
 		}
 		for _, call := range resp.Message.ToolCalls {
 			detail := toolDetail(call)
-			ui.ToolCall(call.Name, detail)
+			if !a.Quiet {
+				ui.ToolCall(call.Name, detail)
+			}
 			result, err := a.Tools.Run(ctx, call.Name, call.Input)
 			msg := provider.Message{
 				Role:       provider.RoleTool,
@@ -67,10 +77,14 @@ func (a *Agent) Run(ctx context.Context, user string) error {
 				ToolName:   call.Name,
 			}
 			if err != nil {
-				ui.ToolFail(err)
+				if !a.Quiet {
+					ui.ToolFail(err)
+				}
 				msg.Content = "error: " + err.Error()
 			} else {
-				ui.ToolOK(summarize(result))
+				if !a.Quiet {
+					ui.ToolOK(summarize(result))
+				}
 				msg.Content = result
 			}
 			a.Messages = append(a.Messages, msg)

@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"strings"
 
+	"github.com/sspzoa/goppi/internal/agent"
 	"github.com/sspzoa/goppi/internal/config"
+	"github.com/sspzoa/goppi/internal/provider"
 	"github.com/sspzoa/goppi/internal/repl"
 	"github.com/sspzoa/goppi/internal/session"
 	"github.com/sspzoa/goppi/internal/ui"
@@ -30,6 +33,9 @@ func cmdRun(args []string) error {
 	fs.BoolVar(cont, "continue", false, "resume last session")
 	resume := fs.String("r", "", "resume session id")
 	fs.StringVar(resume, "resume", "", "resume session id")
+	format := fs.String("output-format", "plain", "plain | json")
+	always := fs.Bool("always-approve", false, "do not ask before write/bash")
+	fs.BoolVar(always, "yolo", false, "alias for --always-approve")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return nil
@@ -52,6 +58,11 @@ func cmdRun(args []string) error {
 	}
 	if *maxTurns > 0 {
 		cfg.MaxTurns = *maxTurns
+	}
+	cfg.AlwaysApprove = cfg.AlwaysApprove || *always
+	cfg.OutputFormat = strings.ToLower(*format)
+	if cfg.OutputFormat != "plain" && cfg.OutputFormat != "json" {
+		return fmt.Errorf("output-format must be plain or json")
 	}
 	if err := cfg.Normalize(); err != nil {
 		return err
@@ -86,7 +97,32 @@ func cmdRun(args []string) error {
 		text = strings.TrimSpace(strings.Join(fs.Args(), " "))
 	}
 	if text != "" {
-		return repl.RunOnce(ctx, a, text)
+		if err := repl.RunOnce(ctx, a, text); err != nil {
+			return err
+		}
+		if cfg.OutputFormat == "json" {
+			return writeJSONResult(a)
+		}
+		return nil
 	}
 	return repl.Loop(ctx, a)
+}
+
+func writeJSONResult(a *agent.Agent) error {
+	text, reasoning := "", ""
+	for i := len(a.Messages) - 1; i >= 0; i-- {
+		if a.Messages[i].Role == provider.RoleAssistant {
+			text = a.Messages[i].Content
+			reasoning = a.Messages[i].Reasoning
+			break
+		}
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(map[string]any{
+		"text":       text,
+		"reasoning":  reasoning,
+		"usage":      a.LastUsage,
+		"session_id": a.SessionID,
+	})
 }

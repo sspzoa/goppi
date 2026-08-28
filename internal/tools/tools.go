@@ -14,13 +14,24 @@ type Runner interface {
 	Run(ctx context.Context, input json.RawMessage) (string, error)
 }
 
+type Ask func(name, detail string) bool
+
 type Registry struct {
 	order []Runner
 	by    map[string]Runner
+	ask   Ask
 }
 
-func New(workdir string, api *upstage.Client) *Registry {
-	r := &Registry{by: map[string]Runner{}}
+func Dangerous(name string) bool {
+	switch name {
+	case "bash", "write_file", "edit_file":
+		return true
+	}
+	return false
+}
+
+func New(workdir string, api *upstage.Client, ask Ask) *Registry {
+	r := &Registry{by: map[string]Runner{}, ask: ask}
 	list := []Runner{
 		readFile{workdir: workdir},
 		writeFile{workdir: workdir},
@@ -62,6 +73,9 @@ func (r *Registry) Run(ctx context.Context, name string, input json.RawMessage) 
 	t, ok := r.by[name]
 	if !ok {
 		return "", fmt.Errorf("unknown tool %q", name)
+	}
+	if Dangerous(name) && r.ask != nil && !r.ask(name, string(input)) {
+		return "", fmt.Errorf("permission denied: %s", name)
 	}
 	return t.Run(ctx, input)
 }

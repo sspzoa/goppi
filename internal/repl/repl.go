@@ -38,7 +38,34 @@ func NewAgent(cfg config.Config) (*agent.Agent, error) {
 	if cfg.PromptCacheKey == "" {
 		cfg.PromptCacheKey = newCacheKey()
 	}
-	return agent.New(cfg, provider.NewSolar(api), tools.New(cfg.WorkDir, api)), nil
+	a := agent.New(cfg, provider.NewSolar(api), tools.New(cfg.WorkDir, api, permissionAsk(cfg)))
+	if cfg.OutputFormat == "json" {
+		a.Quiet = true
+	}
+	return a, nil
+}
+
+func permissionAsk(cfg config.Config) tools.Ask {
+	if cfg.AlwaysApprove {
+		return nil
+	}
+	if cfg.OutputFormat == "json" {
+		return func(string, string) bool { return false }
+	}
+	fi, err := os.Stdin.Stat()
+	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+		return func(string, string) bool { return false }
+	}
+	return func(name, detail string) bool {
+		ui.Warn("%s  %s", name, detail)
+		fmt.Fprint(os.Stderr, "  allow? [y/N] ")
+		sc := bufio.NewScanner(os.Stdin)
+		if !sc.Scan() {
+			return false
+		}
+		s := strings.ToLower(strings.TrimSpace(sc.Text()))
+		return s == "y" || s == "yes"
+	}
 }
 
 func RunOnce(ctx context.Context, a *agent.Agent, prompt string) error {

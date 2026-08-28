@@ -23,6 +23,8 @@ type Config struct {
 	WorkDir         string `json:"workdir"`
 	MaxTokens       int    `json:"max_tokens,omitempty"`
 	PromptCacheKey  string `json:"prompt_cache_key,omitempty"`
+	AlwaysApprove   bool   `json:"always_approve,omitempty"`
+	OutputFormat    string `json:"-"`
 }
 
 func Default() Config {
@@ -117,6 +119,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("UPSTAGE_REASONING_EFFORT"); v != "" {
 		cfg.ReasoningEffort = v
+	}
+	if os.Getenv("GOPPI_ALWAYS_APPROVE") == "1" {
+		cfg.AlwaysApprove = true
 	}
 }
 

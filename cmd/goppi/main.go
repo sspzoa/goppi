@@ -73,6 +73,8 @@ Flags:
   -c, --continue          Resume last session
   -r, --resume id         Resume a session by id
       --max-turns int     Max agent turns
+      --output-format     plain | json
+      --always-approve    Skip permission prompts (alias: --yolo)
 
 API key: goppi login  or  UPSTAGE_API_KEY
 Console: %s
