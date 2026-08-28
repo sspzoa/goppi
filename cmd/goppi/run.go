@@ -72,6 +72,7 @@ func cmdRun(args []string) error {
 	if err != nil {
 		return err
 	}
+	var resumeNote string
 	switch {
 	case *resume != "":
 		f, err := session.Load(*resume)
@@ -79,24 +80,26 @@ func cmdRun(args []string) error {
 			return fmt.Errorf("session %s: %w", *resume, err)
 		}
 		repl.ApplySession(a, f)
-		ui.Info("세션 %s 을 이었습니다. (%d messages)", f.ID, len(f.Messages))
+		resumeNote = fmt.Sprintf("세션 %s 을 이었습니다. (%d messages)", f.ID, len(f.Messages))
 	case *cont:
 		last, err := session.LoadLast()
 		if err != nil {
 			return fmt.Errorf("last session: %w", err)
 		}
 		repl.ApplySession(a, last)
-		ui.Info("이전 세션을 이었습니다. (%s, %d messages)", last.ID, len(last.Messages))
+		resumeNote = fmt.Sprintf("이전 세션을 이었습니다. (%s, %d messages)", last.ID, len(last.Messages))
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
 
 	text := strings.TrimSpace(*prompt)
 	if text == "" {
 		text = strings.TrimSpace(strings.Join(fs.Args(), " "))
 	}
 	if text != "" {
+		if resumeNote != "" {
+			ui.Info("%s", resumeNote)
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
 		if err := repl.RunOnce(ctx, a, text); err != nil {
 			return err
 		}
@@ -105,7 +108,7 @@ func cmdRun(args []string) error {
 		}
 		return nil
 	}
-	return repl.Loop(ctx, a)
+	return repl.Loop(context.Background(), a)
 }
 
 func writeJSONResult(a *agent.Agent) error {

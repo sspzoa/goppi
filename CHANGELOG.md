@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — 2026-08-28
+
+Fullscreen TUI in the style of a shipping coding-agent CLI.
+
+- Alt-screen chat with mouse scroll, streaming reasoning, and tool cards
+- Permission, model, and effort overlays
+- Multiline input (`ctrl+j`), prompt history, slash commands
+- `GOPPI_TUI=0` keeps the old line REPL
+
 ## 0.4.0 — 2026-08-28
 
 Product surface aligned with a shipping coding-agent CLI.

@@ -1,6 +1,6 @@
 # goppi (고삐)
 
-Upstage Solar coding agent. Interactive REPL, headless for scripts, sessions you can resume.
+Upstage Solar coding agent. Fullscreen TUI, headless for scripts, sessions you can resume.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sspzoa/goppi/main/install.sh | bash
@@ -27,7 +27,7 @@ export UPSTAGE_API_KEY=up_...
 ## Usage
 
 ```bash
-goppi                          # REPL
+goppi                          # fullscreen TUI
 goppi -p "이 레포 구조를 설명해줘" # headless
 goppi -p "요약해" --output-format json
 goppi --always-approve -p "테스트 돌려"
@@ -67,9 +67,12 @@ goppi completions bash > /usr/local/etc/bash_completion.d/goppi
 cmd/goppi
 internal/upstage     Solar Chat + Document Parse/OCR
 internal/agent       tool loop
+internal/tui         fullscreen chat (mouse, overlays)
 internal/tools       files, bash, documents
 internal/session     named transcripts
 internal/instructions
 ```
+
+In the TUI: `enter` sends, `ctrl+j` newline, `?` keys, `/model` and `/effort` open pickers. `bash` / writes still ask unless `--always-approve`. `GOPPI_TUI=0` falls back to the line REPL.
 
 AGPL-3.0. See [CHANGELOG.md](CHANGELOG.md).

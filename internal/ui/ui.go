@@ -204,6 +204,8 @@ func Help() {
 		{"/effort [level]", "none · low · medium · high · max"},
 		{"/new", "세션 초기화"},
 		{"/tools", "등록된 툴"},
+		{"/sessions", "최근 세션"},
+		{"/status", "현재 설정"},
 		{"/quit", "종료"},
 	}
 	for _, row := range rows {
@@ -211,6 +213,8 @@ func Help() {
 	}
 	fmt.Fprintf(Out(), "\n  %s\n", mute("문서(PDF, HWP, 이미지)는 document_parse / document_ocr"))
 }
+
+func ShortPath(p string) string { return shortPath(p) }
 
 func shortPath(p string) string {
 	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(p, home) {

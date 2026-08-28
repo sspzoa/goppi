@@ -35,6 +35,14 @@ func NewID() string {
 	return hex.EncodeToString(b[:])
 }
 
+func NewCacheKey() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("goppi-%d", time.Now().UnixNano())
+	}
+	return "goppi-" + hex.EncodeToString(b[:])
+}
+
 func dir() (string, error) {
 	root, err := config.UserDataDir()
 	if err != nil {

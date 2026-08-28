@@ -52,7 +52,7 @@ func printHelp() {
 	fmt.Fprintf(os.Stderr, `goppi — Upstage Solar coding agent
 
 Usage:
-  goppi                     Interactive REPL
+  goppi                     Interactive fullscreen TUI
   goppi -p "task"           Headless one-shot
   goppi "task"              Headless one-shot
 

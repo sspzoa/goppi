@@ -69,12 +69,16 @@ func (r *Registry) Names() []string {
 	return out
 }
 
+func (r *Registry) SetAsk(ask Ask) {
+	r.ask = ask
+}
+
 func (r *Registry) Run(ctx context.Context, name string, input json.RawMessage) (string, error) {
 	t, ok := r.by[name]
 	if !ok {
 		return "", fmt.Errorf("unknown tool %q", name)
 	}
-	if Dangerous(name) && r.ask != nil && !r.ask(name, string(input)) {
+	if Dangerous(name) && r.ask != nil && !r.ask(name, Detail(name, input)) {
 		return "", fmt.Errorf("permission denied: %s", name)
 	}
 	return t.Run(ctx, input)

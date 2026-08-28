@@ -3,8 +3,6 @@ package repl
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -14,6 +12,7 @@ import (
 	"github.com/sspzoa/goppi/internal/provider"
 	"github.com/sspzoa/goppi/internal/session"
 	"github.com/sspzoa/goppi/internal/tools"
+	"github.com/sspzoa/goppi/internal/tui"
 	"github.com/sspzoa/goppi/internal/ui"
 	"github.com/sspzoa/goppi/internal/upstage"
 )
@@ -36,11 +35,13 @@ func NewAgent(cfg config.Config) (*agent.Agent, error) {
 	}
 	api := upstage.New(key, cfg.BaseURL)
 	if cfg.PromptCacheKey == "" {
-		cfg.PromptCacheKey = newCacheKey()
+		cfg.PromptCacheKey = session.NewCacheKey()
 	}
 	a := agent.New(cfg, provider.NewSolar(api), tools.New(cfg.WorkDir, api, permissionAsk(cfg)))
 	if cfg.OutputFormat == "json" {
 		a.Quiet = true
+	} else {
+		a.Sink = ui.NewPrinter()
 	}
 	return a, nil
 }
@@ -52,8 +53,7 @@ func permissionAsk(cfg config.Config) tools.Ask {
 	if cfg.OutputFormat == "json" {
 		return func(string, string) bool { return false }
 	}
-	fi, err := os.Stdin.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+	if !isTTY(os.Stdin) {
 		return func(string, string) bool { return false }
 	}
 	return func(name, detail string) bool {
@@ -85,6 +85,26 @@ func saveSession(a *agent.Agent) error {
 }
 
 func Loop(ctx context.Context, a *agent.Agent) error {
+	if useTUI() {
+		a.Sink = nil
+		return tui.Run(ctx, a)
+	}
+	return lineLoop(ctx, a)
+}
+
+func useTUI() bool {
+	if os.Getenv("GOPPI_TUI") == "0" {
+		return false
+	}
+	return isTTY(os.Stdin) && isTTY(os.Stdout)
+}
+
+func isTTY(f *os.File) bool {
+	fi, err := f.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+func lineLoop(ctx context.Context, a *agent.Agent) error {
 	ui.Banner(config.Version, a.Cfg.Model, a.Cfg.ReasoningEffort, a.Cfg.WorkDir)
 	ui.Hint("메시지를 입력하세요.  /help 로 명령을 봅니다.")
 
@@ -128,7 +148,7 @@ func handleSlash(a *agent.Agent, line string) (quit bool, err error) {
 	case "/new":
 		a.Reset()
 		a.SessionID = session.NewID()
-		a.Cfg.PromptCacheKey = newCacheKey()
+		a.Cfg.PromptCacheKey = session.NewCacheKey()
 		ui.Info("세션을 초기화했습니다. (%s)", a.SessionID)
 	case "/tools":
 		ui.Info("%s", strings.Join(a.Tools.Names(), ", "))
@@ -177,12 +197,4 @@ func uiEffort(cfg config.Config) string {
 		return "default"
 	}
 	return cfg.ReasoningEffort
-}
-
-func newCacheKey() string {
-	var b [8]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return fmt.Sprintf("goppi-%d", os.Getpid())
-	}
-	return "goppi-" + hex.EncodeToString(b[:])
 }
