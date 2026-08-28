@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sspzoa/goppi/internal/config"
+	"github.com/sspzoa/goppi/internal/instructions"
 	"github.com/sspzoa/goppi/internal/provider"
 	"github.com/sspzoa/goppi/internal/tools"
 	"github.com/sspzoa/goppi/internal/ui"
@@ -34,9 +35,10 @@ func (a *Agent) Run(ctx context.Context, user string) error {
 
 	for turn := 0; turn < a.Cfg.MaxTurns; turn++ {
 		stream := ui.NewStream()
+		extra, _ := instructions.Load(a.Cfg.WorkDir)
 		resp, err := a.Client.Chat(ctx, provider.ChatRequest{
 			Model:           a.Cfg.Model,
-			System:          systemPrompt(a.Cfg.WorkDir),
+			System:          systemPrompt(a.Cfg.WorkDir, extra),
 			Messages:        a.Messages,
 			Tools:           a.Tools.Specs(),
 			MaxTokens:       a.Cfg.MaxTokens,
@@ -112,8 +114,8 @@ func summarize(s string) string {
 	return fmt.Sprintf("%d lines", lines)
 }
 
-func systemPrompt(workdir string) string {
-	return fmt.Sprintf(`You are goppi (고삐), a local coding agent running on Upstage Solar.
+func systemPrompt(workdir, extra string) string {
+	s := fmt.Sprintf(`You are goppi (고삐), a local coding agent running on Upstage Solar.
 You work on the user's machine and use tools to inspect and change files.
 
 Working directory: %s
@@ -130,4 +132,8 @@ Rules:
 - For scans and office files, use document_parse instead of guessing from binary bytes.
 - Reply in the user's language. Be concise. When you finish, say what changed.
 `, workdir)
+	if strings.TrimSpace(extra) != "" {
+		s += "\nProject instructions:\n" + extra + "\n"
+	}
+	return s
 }

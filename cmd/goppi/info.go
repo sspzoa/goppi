@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/sspzoa/goppi/internal/config"
+	"github.com/sspzoa/goppi/internal/instructions"
 	"github.com/sspzoa/goppi/internal/ui"
 	"github.com/sspzoa/goppi/internal/upstage"
 )
@@ -48,6 +49,12 @@ func cmdDoctor() error {
 	}
 	dir, err := config.UserDataDir()
 	ok(err == nil, "session dir", dir)
+	_, found := instructions.Load(cfg.WorkDir)
+	if len(found) == 0 {
+		ok(false, "instructions", "no GOPPI.md / AGENTS.md — goppi init")
+	} else {
+		ok(true, "instructions", fmt.Sprintf("%v", found))
+	}
 	return nil
 }
 
@@ -65,6 +72,7 @@ func cmdInspect(args []string) error {
 	if err != nil {
 		return err
 	}
+	_, found := instructions.Load(cfg.WorkDir)
 	info := map[string]any{
 		"version":          config.Version,
 		"model":            cfg.Model,
@@ -75,6 +83,7 @@ func cmdInspect(args []string) error {
 		"max_tokens":       cfg.MaxTokens,
 		"key_source":       cfg.KeySource(),
 		"has_key":          cfg.ResolveAPIKey() != "",
+		"instructions":     found,
 	}
 	if *asJSON {
 		enc := json.NewEncoder(os.Stdout)
@@ -87,5 +96,10 @@ func cmdInspect(args []string) error {
 	fmt.Printf("  base_url  %s\n", cfg.BaseURL)
 	fmt.Printf("  workdir   %s\n", cfg.WorkDir)
 	fmt.Printf("  key       %s\n", map[bool]string{true: cfg.KeySource(), false: "missing"}[cfg.ResolveAPIKey() != ""])
+	if len(found) == 0 {
+		fmt.Printf("  rules     (none)\n")
+	} else {
+		fmt.Printf("  rules     %s\n", found)
+	}
 	return nil
 }

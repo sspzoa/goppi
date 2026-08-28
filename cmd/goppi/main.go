@@ -33,6 +33,8 @@ func run(args []string) error {
 		return cmdModels()
 	case "doctor":
 		return cmdDoctor()
+	case "init":
+		return cmdInit()
 	case "inspect":
 		return cmdInspect(args[1:])
 	case "sessions":
@@ -57,6 +59,7 @@ Commands:
   logout         Remove the saved key
   models         List Solar chat models
   doctor         Check local setup
+  init           Write GOPPI.md project instructions
   inspect        Show resolved config
   sessions       List and manage sessions
   export [id]    Export a session as Markdown
