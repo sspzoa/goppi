@@ -40,12 +40,53 @@ func Paint(code, s string) string {
 	return code + s + Reset
 }
 
-func Banner(version, provider, model, workdir string) {
+func Banner(version, model, effort, workdir string) {
 	fmt.Fprintf(Out(), "%s\n", Paint(Bold+Magenta, "고삐 goppi  "+version))
-	fmt.Fprintf(Out(), "  %s  %s\n", Paint(Dim, "provider"), provider)
-	fmt.Fprintf(Out(), "  %s  %s\n", Paint(Dim, "model   "), model)
-	fmt.Fprintf(Out(), "  %s  %s\n", Paint(Dim, "workdir "), workdir)
+	fmt.Fprintf(Out(), "  %s  upstage / %s\n", Paint(Dim, "solar  "), model)
+	fmt.Fprintf(Out(), "  %s  %s\n", Paint(Dim, "effort "), effortLabel(effort, model))
+	fmt.Fprintf(Out(), "  %s  %s\n", Paint(Dim, "workdir"), workdir)
 	fmt.Fprintln(Out())
+}
+
+func effortLabel(effort, model string) string {
+	if model == "solar-mini" {
+		return "n/a (solar-mini)"
+	}
+	if effort == "" {
+		return "default (solar-pro4는 on)"
+	}
+	return effort
+}
+
+func Reasoning(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	lines := strings.Split(text, "\n")
+	const max = 12
+	fmt.Fprintf(Out(), "\n%s\n", Paint(Dim, "reasoning"))
+	shown := lines
+	if len(lines) > max {
+		shown = lines[:max]
+	}
+	for _, line := range shown {
+		fmt.Fprintf(Out(), "  %s\n", Paint(Dim, line))
+	}
+	if len(lines) > max {
+		fmt.Fprintf(Out(), "  %s\n", Paint(Dim, fmt.Sprintf("… %d more lines", len(lines)-max)))
+	}
+}
+
+func Usage(in, out, reason int) {
+	if in == 0 && out == 0 {
+		return
+	}
+	msg := fmt.Sprintf("%d in · %d out", in, out)
+	if reason > 0 {
+		msg += fmt.Sprintf(" · %d reason", reason)
+	}
+	fmt.Fprintf(Out(), "%s\n", Paint(Dim, msg))
 }
 
 func UserPrompt() {
@@ -94,13 +135,13 @@ func Info(format string, args ...any) {
 
 func Help() {
 	fmt.Fprint(Out(), `명령
-  /help              이 도움말
-  /model [name]      모델 보기 / 바꾸기
-  /provider [name]   anthropic | openai
-  /new               세션 초기화
-  /tools             등록된 툴
-  /quit              종료
+  /help                 이 도움말
+  /model [name]         solar-pro4 | solar-pro3 | solar-pro2 | solar-mini
+  /effort [level]       none | minimal | low | medium | high | xhigh | max
+  /new                  세션 초기화
+  /tools                등록된 툴
+  /quit                 종료
 
-그냥 메시지를 입력하면 에이전트가 툴을 쓰며 일합니다.
+문서(PDF, HWP, 이미지)는 document_parse / document_ocr 툴이 처리합니다.
 `)
 }

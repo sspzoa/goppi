@@ -6,18 +6,23 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/sspzoa/goppi/internal/upstage"
 )
 
-const Version = "0.1.0"
+const Version = "0.2.0"
+
+var Efforts = []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 
 type Config struct {
-	Provider  string `json:"provider"`
-	Model     string `json:"model"`
-	APIKey    string `json:"api_key,omitempty"`
-	BaseURL   string `json:"base_url,omitempty"`
-	MaxTurns  int    `json:"max_turns"`
-	WorkDir   string `json:"workdir"`
-	MaxTokens int    `json:"max_tokens,omitempty"`
+	APIKey          string `json:"api_key,omitempty"`
+	BaseURL         string `json:"base_url,omitempty"`
+	Model           string `json:"model"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	MaxTurns        int    `json:"max_turns"`
+	WorkDir         string `json:"workdir"`
+	MaxTokens       int    `json:"max_tokens,omitempty"`
+	PromptCacheKey  string `json:"prompt_cache_key,omitempty"`
 }
 
 func Default() Config {
@@ -26,11 +31,11 @@ func Default() Config {
 		wd = "."
 	}
 	return Config{
-		Provider:  "anthropic",
-		Model:     "claude-sonnet-4-5",
+		BaseURL:   upstage.DefaultBaseURL,
+		Model:     upstage.DefaultModel,
 		MaxTurns:  30,
 		WorkDir:   wd,
-		MaxTokens: 8192,
+		MaxTokens: 32768,
 	}
 }
 
@@ -60,19 +65,7 @@ func (c *Config) Normalize() error {
 }
 
 func (c Config) ResolveAPIKey() string {
-	if c.APIKey != "" {
-		return c.APIKey
-	}
-	if v := os.Getenv("GOPPI_API_KEY"); v != "" {
-		return v
-	}
-	switch strings.ToLower(c.Provider) {
-	case "anthropic":
-		return os.Getenv("ANTHROPIC_API_KEY")
-	case "openai":
-		return os.Getenv("OPENAI_API_KEY")
-	}
-	return ""
+	return upstage.ResolveAPIKey(c.APIKey)
 }
 
 func searchPaths() []string {
@@ -87,10 +80,10 @@ func searchPaths() []string {
 }
 
 func applyEnv(cfg *Config) {
-	if v := os.Getenv("GOPPI_PROVIDER"); v != "" {
-		cfg.Provider = v
-	}
 	if v := os.Getenv("GOPPI_MODEL"); v != "" {
+		cfg.Model = v
+	}
+	if v := os.Getenv("UPSTAGE_MODEL"); v != "" {
 		cfg.Model = v
 	}
 	if v := os.Getenv("GOPPI_BASE_URL"); v != "" {
@@ -99,20 +92,24 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv("GOPPI_WORKDIR"); v != "" {
 		cfg.WorkDir = v
 	}
+	if v := os.Getenv("GOPPI_EFFORT"); v != "" {
+		cfg.ReasoningEffort = v
+	}
+	if v := os.Getenv("UPSTAGE_REASONING_EFFORT"); v != "" {
+		cfg.ReasoningEffort = v
+	}
 }
 
 func normalize(cfg *Config) error {
-	cfg.Provider = strings.ToLower(strings.TrimSpace(cfg.Provider))
-	switch cfg.Provider {
-	case "anthropic", "openai":
-	default:
-		return fmt.Errorf("unknown provider %q (anthropic|openai)", cfg.Provider)
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = upstage.DefaultBaseURL
 	}
+	cfg.BaseURL = strings.TrimRight(cfg.BaseURL, "/")
 	if cfg.MaxTurns <= 0 {
 		cfg.MaxTurns = 30
 	}
 	if cfg.MaxTokens <= 0 {
-		cfg.MaxTokens = 8192
+		cfg.MaxTokens = 32768
 	}
 	if cfg.WorkDir == "" {
 		cfg.WorkDir = "."
@@ -123,20 +120,25 @@ func normalize(cfg *Config) error {
 	}
 	cfg.WorkDir = abs
 	if cfg.Model == "" {
-		switch cfg.Provider {
-		case "anthropic":
-			cfg.Model = "claude-sonnet-4-5"
-		case "openai":
-			cfg.Model = "gpt-4.1"
-		}
+		cfg.Model = upstage.DefaultModel
 	}
-	if cfg.BaseURL == "" && cfg.Provider == "openai" {
-		cfg.BaseURL = "https://api.openai.com/v1"
+	cfg.ReasoningEffort = strings.ToLower(strings.TrimSpace(cfg.ReasoningEffort))
+	if cfg.ReasoningEffort != "" && !validEffort(cfg.ReasoningEffort) {
+		return fmt.Errorf("unknown reasoning_effort %q (%s)", cfg.ReasoningEffort, strings.Join(Efforts, "|"))
 	}
-	if cfg.BaseURL == "" && cfg.Provider == "anthropic" {
-		cfg.BaseURL = "https://api.anthropic.com"
+	if cfg.Model == "solar-mini" {
+		cfg.ReasoningEffort = ""
 	}
 	return nil
+}
+
+func validEffort(s string) bool {
+	for _, e := range Efforts {
+		if e == s {
+			return true
+		}
+	}
+	return false
 }
 
 func UserDataDir() (string, error) {

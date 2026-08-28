@@ -13,8 +13,9 @@ import (
 type File struct {
 	UpdatedAt time.Time          `json:"updated_at"`
 	WorkDir   string             `json:"workdir"`
-	Provider  string             `json:"provider"`
 	Model     string             `json:"model"`
+	Effort    string             `json:"reasoning_effort,omitempty"`
+	CacheKey  string             `json:"prompt_cache_key,omitempty"`
 	Messages  []provider.Message `json:"messages"`
 }
 
@@ -34,8 +35,9 @@ func Save(cfg config.Config, messages []provider.Message) error {
 	data, err := json.MarshalIndent(File{
 		UpdatedAt: time.Now(),
 		WorkDir:   cfg.WorkDir,
-		Provider:  cfg.Provider,
 		Model:     cfg.Model,
+		Effort:    cfg.ReasoningEffort,
+		CacheKey:  cfg.PromptCacheKey,
 		Messages:  messages,
 	}, "", "  ")
 	if err != nil {

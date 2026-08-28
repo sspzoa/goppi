@@ -1,80 +1,91 @@
 # goppi (고삐)
 
-로컬에서 돌아가는 에이전트 하네스 CLI입니다. LLM이 파일을 읽고 고치고, 셸을 실행하는 루프를 직접 붙잡습니다.
+[Upstage Solar](https://console.upstage.ai/ko/docs/getting-started)에 맞춘 로컬 에이전트 하네스입니다. 채팅은 `solar-pro4`, 문서는 Document Parse / OCR입니다.
 
-의존성 없이 Go 표준 라이브러리만 씁니다. 프로바이더는 Anthropic과 OpenAI-compatible 둘 다 됩니다.
+## 시작
 
-## 설치
-
-```bash
-go install github.com/sspzoa/goppi/cmd/goppi@latest
-# 또는
-make install
-```
-
-로컬에서:
+1. [console.upstage.ai](https://console.upstage.ai)에서 API 키를 만듭니다.
+2. 키를 넣고 실행합니다.
 
 ```bash
+export UPSTAGE_API_KEY=up_...
 make build
 ./bin/goppi
+./bin/goppi "이 레포 구조를 설명해줘"
 ```
+
+기본 엔드포인트는 `https://api.upstage.ai/v1` 입니다. 콘솔 Getting Started의 OpenAI SDK 예시와 같은 주소입니다.
+
+## 모델
+
+| 모델 | 용도 |
+| --- | --- |
+| `solar-pro4` | 기본. 에이전트·문서·코딩. reasoning 기본 on, 512K 컨텍스트 |
+| `solar-pro3` | 이전 플래그십 |
+| `solar-pro2` | 이전 세대 |
+| `solar-mini` | 빠른 응답. `reasoning_effort`를 보내면 400 |
+
+```bash
+goppi --model solar-pro4 --effort low
+goppi --model solar-mini
+```
+
+`solar-pro4`는 `reasoning_effort`를 생략하면 reasoning이 켜집니다. 끄려면 `--effort none`.
+
+## 문서
+
+PDF, HWP, HWPX, DOCX, PPTX, XLSX, 이미지(JPEG, PNG, BMP, HEIC, TIFF)는 바이너리로 읽지 말고 툴로 넘기세요.
+
+- `document_parse` — 레이아웃 유지 Markdown. RAG/요약/계약서에 맞음
+- `document_ocr` — 좌표 없는 순수 텍스트
 
 ## 설정
 
-API 키는 환경변수로 넣습니다.
+환경변수 우선:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-# 또는 OpenAI / OpenRouter / Ollama 등
-export OPENAI_API_KEY=sk-...
-export GOPPI_PROVIDER=openai
-export GOPPI_BASE_URL=https://openrouter.ai/api/v1
-export GOPPI_MODEL=anthropic/claude-sonnet-4.5
+export UPSTAGE_API_KEY=up_...
+export GOPPI_MODEL=solar-pro4
+export GOPPI_EFFORT=low          # 선택
 ```
 
-선택 파일:
-
-- `~/.config/goppi/config.json`
-- 프로젝트 `.goppi.json`
+또는 `~/.config/goppi/config.json` / 프로젝트 `.goppi.json`:
 
 ```json
 {
-  "provider": "anthropic",
-  "model": "claude-sonnet-4-5",
-  "max_turns": 30
+  "model": "solar-pro4",
+  "reasoning_effort": "low",
+  "max_turns": 30,
+  "max_tokens": 32768
 }
 ```
 
-## 사용
+`max_tokens` 기본은 32768입니다. Solar Pro 4는 reasoning 토큰이 `completion_tokens`에 포함되므로 답을 비우지 않게 여유를 둡니다.
 
-```bash
-goppi                          # REPL
-goppi "이 레포 구조를 설명해줘"   # 한 번 실행
-goppi --continue               # 마지막 세션 이어서
-goppi --provider openai --model gpt-4.1 -C ./some/dir
+세션마다 `prompt_cache_key`를 붙여 멀티턴 캐시를 씁니다. `--continue`는 마지막 키를 이어 받습니다.
+
+## REPL
+
+```
+고삐 goppi  0.2.0
+  solar    upstage / solar-pro4
+  effort   default (solar-pro4는 on)
+  workdir  /path
+
+›
 ```
 
-REPL 명령: `/help` `/model` `/provider` `/tools` `/new` `/quit`
-
-## 툴
-
-| 툴 | 하는 일 |
-| --- | --- |
-| `read_file` | 줄 번호 붙여 읽기 |
-| `write_file` | 파일 생성/덮어쓰기 |
-| `edit_file` | 유일한 한 구간만 치환 |
-| `glob` | `**` 패턴으로 파일 찾기 |
-| `grep` | 정규식으로 내용 검색 |
-| `bash` | workdir에서 셸 실행 |
+`/model` `/effort` `/tools` `/new` `/quit`
 
 ## 레이아웃
 
 ```
-cmd/goppi          엔트리
-internal/agent     툴 루프
-internal/provider  Anthropic / OpenAI
-internal/tools     파일·셸
-internal/repl      REPL과 원샷
-internal/config    env + json
-internal/session   마지막 대화 저장
+cmd/goppi
+internal/upstage     Solar Chat + Document Parse/OCR
+internal/provider    Chat Completions 매핑
+internal/agent       툴 루프
+internal/tools       파일·셸·문서
+internal/repl
+internal/config
+internal/session
 ```

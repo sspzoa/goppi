@@ -16,6 +16,7 @@ const (
 type Message struct {
 	Role       Role
 	Content    string
+	Reasoning  string `json:"reasoning,omitempty"`
 	ToolCalls  []ToolCall
 	ToolCallID string
 	ToolName   string
@@ -34,16 +35,19 @@ type ToolSpec struct {
 }
 
 type Usage struct {
-	InputTokens  int
-	OutputTokens int
+	InputTokens     int
+	OutputTokens    int
+	ReasoningTokens int
 }
 
 type ChatRequest struct {
-	Model     string
-	System    string
-	Messages  []Message
-	Tools     []ToolSpec
-	MaxTokens int
+	Model           string
+	System          string
+	Messages        []Message
+	Tools           []ToolSpec
+	MaxTokens       int
+	ReasoningEffort string
+	PromptCacheKey  string
 }
 
 type ChatResponse struct {

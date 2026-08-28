@@ -1,5 +1,6 @@
 {
-  "provider": "anthropic",
-  "model": "claude-sonnet-4-5",
-  "max_turns": 30
+  "model": "solar-pro4",
+  "reasoning_effort": "low",
+  "max_turns": 30,
+  "max_tokens": 32768
 }

@@ -32,19 +32,25 @@ func (a *Agent) Run(ctx context.Context, user string) error {
 
 	for turn := 0; turn < a.Cfg.MaxTurns; turn++ {
 		resp, err := a.Client.Chat(ctx, provider.ChatRequest{
-			Model:     a.Cfg.Model,
-			System:    systemPrompt(a.Cfg.WorkDir),
-			Messages:  a.Messages,
-			Tools:     a.Tools.Specs(),
-			MaxTokens: a.Cfg.MaxTokens,
+			Model:           a.Cfg.Model,
+			System:          systemPrompt(a.Cfg.WorkDir),
+			Messages:        a.Messages,
+			Tools:           a.Tools.Specs(),
+			MaxTokens:       a.Cfg.MaxTokens,
+			ReasoningEffort: a.Cfg.ReasoningEffort,
+			PromptCacheKey:  a.Cfg.PromptCacheKey,
 		})
 		if err != nil {
 			return err
 		}
 		a.Messages = append(a.Messages, resp.Message)
+		if resp.Message.Reasoning != "" {
+			ui.Reasoning(resp.Message.Reasoning)
+		}
 		if strings.TrimSpace(resp.Message.Content) != "" {
 			ui.Assistant(resp.Message.Content)
 		}
+		ui.Usage(resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.ReasoningTokens)
 		if len(resp.Message.ToolCalls) == 0 {
 			return nil
 		}
@@ -80,15 +86,11 @@ func toolDetail(call provider.ToolCall) string {
 		if cmd, ok := raw["command"].(string); ok {
 			return "$ " + cmd
 		}
-	case "read_file", "write_file", "edit_file":
+	case "read_file", "write_file", "edit_file", "document_parse", "document_ocr":
 		if p, ok := raw["path"].(string); ok {
 			return p
 		}
-	case "glob":
-		if p, ok := raw["pattern"].(string); ok {
-			return p
-		}
-	case "grep":
+	case "glob", "grep":
 		if p, ok := raw["pattern"].(string); ok {
 			return p
 		}
@@ -110,16 +112,21 @@ func summarize(s string) string {
 }
 
 func systemPrompt(workdir string) string {
-	return fmt.Sprintf(`You are goppi (고삐), a local coding-agent harness.
+	return fmt.Sprintf(`You are goppi (고삐), a local coding agent running on Upstage Solar.
 You work on the user's machine and use tools to inspect and change files.
 
 Working directory: %s
+
+Upstage tools:
+- document_parse: PDF/HWP/Office/images → Markdown with layout. Default for documents.
+- document_ocr: plain text only, when layout does not matter.
 
 Rules:
 - Prefer doing the work over describing a plan.
 - Read before you edit. Keep diffs small and exact.
 - edit_file must match exactly one occurrence; widen or shrink old_string if it is not unique.
 - bash runs in the working directory. Do not start long-lived servers.
+- For scans and office files, use document_parse instead of guessing from binary bytes.
 - Reply in the user's language. Be concise. When you finish, say what changed.
 `, workdir)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/sspzoa/goppi/internal/repl"
 	"github.com/sspzoa/goppi/internal/session"
 	"github.com/sspzoa/goppi/internal/ui"
+	"github.com/sspzoa/goppi/internal/upstage"
 )
 
 func main() {
@@ -25,19 +26,21 @@ func run(args []string) error {
 	fs := flag.NewFlagSet("goppi", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() {
-		fmt.Fprint(os.Stderr, `goppi — 고삐, 로컬 에이전트 하네스
+		fmt.Fprintf(os.Stderr, `goppi — 고삐, Upstage Solar 에이전트 하네스
 
 사용:
   goppi                     REPL
   goppi "할 일"              한 번 실행
   goppi --continue           마지막 세션 이어서
 
-`)
+API 키: UPSTAGE_API_KEY  (%s)
+
+`, upstage.ConsoleURL)
 		fs.PrintDefaults()
 	}
 	showVersion := fs.Bool("version", false, "print version")
-	providerName := fs.String("provider", "", "anthropic | openai")
-	model := fs.String("model", "", "model id")
+	model := fs.String("model", "", "solar-pro4 | solar-pro3 | solar-pro2 | solar-mini")
+	effort := fs.String("effort", "", "none | minimal | low | medium | high | xhigh | max")
 	workdir := fs.String("C", "", "working directory")
 	maxTurns := fs.Int("max-turns", 0, "max agent turns")
 	cont := fs.Bool("continue", false, "resume last session")
@@ -57,11 +60,11 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	if *providerName != "" {
-		cfg.Provider = *providerName
-	}
 	if *model != "" {
 		cfg.Model = *model
+	}
+	if *effort != "" {
+		cfg.ReasoningEffort = *effort
 	}
 	if *workdir != "" {
 		cfg.WorkDir = *workdir
@@ -83,6 +86,9 @@ func run(args []string) error {
 			return fmt.Errorf("last session: %w", err)
 		}
 		a.Messages = last.Messages
+		if last.CacheKey != "" {
+			a.Cfg.PromptCacheKey = last.CacheKey
+		}
 		ui.Info("이전 세션을 이었습니다. (%d messages)", len(last.Messages))
 	}
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/sspzoa/goppi/internal/provider"
+	"github.com/sspzoa/goppi/internal/upstage"
 )
 
 type Runner interface {
@@ -18,16 +19,23 @@ type Registry struct {
 	by    map[string]Runner
 }
 
-func New(workdir string) *Registry {
+func New(workdir string, api *upstage.Client) *Registry {
 	r := &Registry{by: map[string]Runner{}}
-	for _, t := range []Runner{
+	list := []Runner{
 		readFile{workdir: workdir},
 		writeFile{workdir: workdir},
 		editFile{workdir: workdir},
 		globFiles{workdir: workdir},
 		grepFiles{workdir: workdir},
 		bashCmd{workdir: workdir},
-	} {
+	}
+	if api != nil {
+		list = append(list,
+			documentParse{workdir: workdir, api: api},
+			documentOCR{workdir: workdir, api: api},
+		)
+	}
+	for _, t := range list {
 		r.order = append(r.order, t)
 		r.by[t.Spec().Name] = t
 	}

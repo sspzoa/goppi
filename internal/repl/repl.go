@@ -3,6 +3,8 @@ package repl
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -13,29 +15,19 @@ import (
 	"github.com/sspzoa/goppi/internal/session"
 	"github.com/sspzoa/goppi/internal/tools"
 	"github.com/sspzoa/goppi/internal/ui"
+	"github.com/sspzoa/goppi/internal/upstage"
 )
 
-func NewClient(cfg config.Config) (provider.Client, error) {
+func NewAgent(cfg config.Config) (*agent.Agent, error) {
 	key := cfg.ResolveAPIKey()
 	if key == "" {
-		return nil, fmt.Errorf("API 키가 없습니다. ANTHROPIC_API_KEY, OPENAI_API_KEY, 또는 GOPPI_API_KEY 를 설정하세요")
+		return nil, upstage.MissingKeyError()
 	}
-	switch cfg.Provider {
-	case "anthropic":
-		return provider.NewAnthropic(key, cfg.BaseURL), nil
-	case "openai":
-		return provider.NewOpenAI(key, cfg.BaseURL), nil
-	default:
-		return nil, fmt.Errorf("unknown provider %q", cfg.Provider)
+	api := upstage.New(key, cfg.BaseURL)
+	if cfg.PromptCacheKey == "" {
+		cfg.PromptCacheKey = newCacheKey()
 	}
-}
-
-func NewAgent(cfg config.Config) (*agent.Agent, error) {
-	client, err := NewClient(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return agent.New(cfg, client, tools.New(cfg.WorkDir)), nil
+	return agent.New(cfg, provider.NewSolar(api), tools.New(cfg.WorkDir, api)), nil
 }
 
 func RunOnce(ctx context.Context, a *agent.Agent, prompt string) error {
@@ -46,7 +38,7 @@ func RunOnce(ctx context.Context, a *agent.Agent, prompt string) error {
 }
 
 func Loop(ctx context.Context, a *agent.Agent) error {
-	ui.Banner(config.Version, a.Cfg.Provider, a.Cfg.Model, a.Cfg.WorkDir)
+	ui.Banner(config.Version, a.Cfg.Model, a.Cfg.ReasoningEffort, a.Cfg.WorkDir)
 	ui.Info("메시지를 입력하세요. /help 로 명령을 봅니다.")
 	fmt.Fprintln(ui.Out())
 
@@ -89,31 +81,65 @@ func handleSlash(a *agent.Agent, line string) (quit bool, err error) {
 		return true, nil
 	case "/new":
 		a.Reset()
+		a.Cfg.PromptCacheKey = newCacheKey()
 		ui.Info("세션을 초기화했습니다.")
 	case "/tools":
 		ui.Info("%s", strings.Join(a.Tools.Names(), ", "))
 	case "/model":
 		if arg == "" {
-			ui.Info("%s", a.Cfg.Model)
+			printModels(a.Cfg.Model)
 			return false, nil
 		}
 		a.Cfg.Model = arg
-		ui.Info("model → %s", a.Cfg.Model)
-	case "/provider":
-		if arg == "" {
-			ui.Info("%s", a.Cfg.Provider)
-			return false, nil
+		if a.Cfg.Model == "solar-mini" {
+			a.Cfg.ReasoningEffort = ""
 		}
-		a.Cfg.Provider = strings.ToLower(arg)
-		client, err := NewClient(a.Cfg)
-		if err != nil {
+		if err := a.Cfg.Normalize(); err != nil {
 			ui.Error("%s", err)
 			return false, nil
 		}
-		a.Client = client
-		ui.Info("provider → %s", a.Cfg.Provider)
+		ui.Info("model → %s", a.Cfg.Model)
+	case "/effort":
+		if arg == "" {
+			ui.Info("%s", uiEffort(a.Cfg))
+			return false, nil
+		}
+		a.Cfg.ReasoningEffort = arg
+		if err := a.Cfg.Normalize(); err != nil {
+			ui.Error("%s", err)
+			return false, nil
+		}
+		ui.Info("effort → %s", uiEffort(a.Cfg))
 	default:
 		ui.Warn("모르는 명령입니다. /help")
 	}
 	return false, nil
+}
+
+func printModels(current string) {
+	for _, m := range upstage.ChatModels {
+		mark := " "
+		if m.ID == current {
+			mark = "*"
+		}
+		ui.Info("%s %s  %s", mark, m.ID, m.Summary)
+	}
+}
+
+func uiEffort(cfg config.Config) string {
+	if cfg.Model == "solar-mini" {
+		return "n/a"
+	}
+	if cfg.ReasoningEffort == "" {
+		return "default"
+	}
+	return cfg.ReasoningEffort
+}
+
+func newCacheKey() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("goppi-%d", os.Getpid())
+	}
+	return "goppi-" + hex.EncodeToString(b[:])
 }
