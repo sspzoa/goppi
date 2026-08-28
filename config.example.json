@@ -1,6 +1,6 @@
 {
   "model": "solar-pro4",
-  "reasoning_effort": "low",
+  "reasoning_effort": "medium",
   "max_turns": 30,
   "max_tokens": 32768
 }

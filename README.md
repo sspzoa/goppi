@@ -30,7 +30,7 @@ goppi --model solar-pro4 --effort low
 goppi --model solar-mini
 ```
 
-`solar-pro4`는 `reasoning_effort`를 생략하면 reasoning이 켜집니다. 끄려면 `--effort none`.
+기본은 `reasoning_effort=medium`입니다. 끄려면 `--effort none`.
 
 ## 문서
 
@@ -54,7 +54,7 @@ export GOPPI_EFFORT=low          # 선택
 ```json
 {
   "model": "solar-pro4",
-  "reasoning_effort": "low",
+  "reasoning_effort": "medium",
   "max_turns": 30,
   "max_tokens": 32768
 }

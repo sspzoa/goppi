@@ -12,10 +12,15 @@ import (
 type solarChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content   string           `json:"content"`
-			Reasoning string           `json:"reasoning"`
-			ToolCalls []solarDeltaCall `json:"tool_calls"`
+			Content          flexString       `json:"content"`
+			Reasoning        flexString       `json:"reasoning"`
+			ReasoningContent flexString       `json:"reasoning_content"`
+			ToolCalls        []solarDeltaCall `json:"tool_calls"`
 		} `json:"delta"`
+		Message struct {
+			Reasoning        flexString `json:"reasoning"`
+			ReasoningContent flexString `json:"reasoning_content"`
+		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage *struct {
@@ -112,11 +117,11 @@ func (a *streamAcc) apply(raw []byte) error {
 	if ch.FinishReason != "" {
 		a.stop = ch.FinishReason
 	}
-	if ch.Delta.Reasoning != "" {
-		a.reasoning.WriteString(ch.Delta.Reasoning)
+	if r := firstNonEmpty(ch.Delta.Reasoning.String(), ch.Delta.ReasoningContent.String(), ch.Message.Reasoning.String(), ch.Message.ReasoningContent.String()); r != "" {
+		a.reasoning.WriteString(r)
 	}
-	if ch.Delta.Content != "" {
-		a.content.WriteString(ch.Delta.Content)
+	if c := ch.Delta.Content.String(); c != "" {
+		a.content.WriteString(c)
 	}
 	for _, tc := range ch.Delta.ToolCalls {
 		if a.calls == nil {
@@ -165,6 +170,46 @@ func (a *streamAcc) response() ChatResponse {
 		})
 	}
 	return out
+}
+
+type flexString string
+
+func (s *flexString) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	if b[0] == '"' {
+		var v string
+		if err := json.Unmarshal(b, &v); err != nil {
+			return err
+		}
+		*s = flexString(v)
+		return nil
+	}
+	var parts []struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(b, &parts); err == nil {
+		var out strings.Builder
+		for _, p := range parts {
+			out.WriteString(p.Text)
+		}
+		*s = flexString(out.String())
+		return nil
+	}
+	return nil
+}
+
+func (s flexString) String() string { return string(s) }
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func truncate(b []byte, n int) string {

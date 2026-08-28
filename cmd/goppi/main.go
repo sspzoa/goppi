@@ -26,14 +26,14 @@ func run(args []string) error {
 	fs := flag.NewFlagSet("goppi", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `goppi — 고삐, Upstage Solar 에이전트 하네스
+		fmt.Fprintf(os.Stderr, `goppi — Upstage Solar 에이전트 하네스
 
-사용:
   goppi                     REPL
   goppi "할 일"              한 번 실행
   goppi --continue           마지막 세션 이어서
 
-API 키: UPSTAGE_API_KEY  (%s)
+  API 키  UPSTAGE_API_KEY
+  콘솔    %s
 
 `, upstage.ConsoleURL)
 		fs.PrintDefaults()

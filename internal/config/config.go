@@ -31,11 +31,12 @@ func Default() Config {
 		wd = "."
 	}
 	return Config{
-		BaseURL:   upstage.DefaultBaseURL,
-		Model:     upstage.DefaultModel,
-		MaxTurns:  30,
-		WorkDir:   wd,
-		MaxTokens: 32768,
+		BaseURL:         upstage.DefaultBaseURL,
+		Model:           upstage.DefaultModel,
+		ReasoningEffort: "medium",
+		MaxTurns:        30,
+		WorkDir:         wd,
+		MaxTokens:       32768,
 	}
 }
 
@@ -128,6 +129,10 @@ func normalize(cfg *Config) error {
 	}
 	if cfg.Model == "solar-mini" {
 		cfg.ReasoningEffort = ""
+	} else if cfg.ReasoningEffort == "" {
+		// solar-pro4 docs say omit == on, but with tools+stream the API
+		// often skips reasoning unless effort is sent explicitly.
+		cfg.ReasoningEffort = "medium"
 	}
 	return nil
 }

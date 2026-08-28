@@ -14,6 +14,17 @@ func TestNormalizeSolarMiniDropsEffort(t *testing.T) {
 	}
 }
 
+func TestNormalizeDefaultEffortIsMedium(t *testing.T) {
+	cfg := Default()
+	cfg.ReasoningEffort = ""
+	if err := cfg.Normalize(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ReasoningEffort != "medium" {
+		t.Fatalf("got %q", cfg.ReasoningEffort)
+	}
+}
+
 func TestNormalizeRejectsBadEffort(t *testing.T) {
 	cfg := Default()
 	cfg.ReasoningEffort = "super"

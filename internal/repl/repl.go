@@ -39,8 +39,7 @@ func RunOnce(ctx context.Context, a *agent.Agent, prompt string) error {
 
 func Loop(ctx context.Context, a *agent.Agent) error {
 	ui.Banner(config.Version, a.Cfg.Model, a.Cfg.ReasoningEffort, a.Cfg.WorkDir)
-	ui.Info("메시지를 입력하세요. /help 로 명령을 봅니다.")
-	fmt.Fprintln(ui.Out())
+	ui.Hint("메시지를 입력하세요.  /help 로 명령을 봅니다.")
 
 	sc := bufio.NewScanner(os.Stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -118,11 +117,7 @@ func handleSlash(a *agent.Agent, line string) (quit bool, err error) {
 
 func printModels(current string) {
 	for _, m := range upstage.ChatModels {
-		mark := " "
-		if m.ID == current {
-			mark = "*"
-		}
-		ui.Info("%s %s  %s", mark, m.ID, m.Summary)
+		ui.ModelRow(m.ID == current, m.ID, m.Summary)
 	}
 }
 
