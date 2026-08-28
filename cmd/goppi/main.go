@@ -41,6 +41,8 @@ func run(args []string) error {
 		return cmdSessions(args[1:])
 	case "export":
 		return cmdExport(args[1:])
+	case "completions":
+		return cmdCompletions(args[1:])
 	default:
 		return cmdRun(args)
 	}
@@ -63,6 +65,7 @@ Commands:
   inspect        Show resolved config
   sessions       List and manage sessions
   export [id]    Export a session as Markdown
+  completions    Shell completion scripts
   version        Print version
 
 Flags:
