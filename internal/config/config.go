@@ -10,7 +10,7 @@ import (
 	"github.com/sspzoa/goppi/internal/upstage"
 )
 
-const Version = "0.6.1"
+const Version = "0.6.2"
 
 var Efforts = []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 

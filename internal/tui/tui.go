@@ -75,13 +75,22 @@ type model struct {
 
 func Run(ctx context.Context, a *agent.Agent) error {
 	m := newModel(ctx, a)
-	p := tea.NewProgram(m, tea.WithContext(ctx))
+	p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithFilter(keepCtrlC))
 	m.program = p
 	a.Sink = &bridge{send: p.Send}
 	a.Tools.SetAsk(m.ask)
 	_, err := p.Run()
 	m.shutdown()
 	return err
+}
+
+// keepCtrlC turns SIGINT into a key so the model can cancel a turn or
+// confirm quit. Bubble Tea v2 otherwise exits immediately on InterruptMsg.
+func keepCtrlC(_ tea.Model, msg tea.Msg) tea.Msg {
+	if _, ok := msg.(tea.InterruptMsg); ok {
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	}
+	return msg
 }
 
 func newModel(ctx context.Context, a *agent.Agent) *model {
@@ -312,7 +321,7 @@ func (m *model) renderFooter() string {
 	case overlayPerm:
 		return " " + m.st.hint.Render("y 허용  ·  n / esc 거부")
 	case overlayQuit:
-		return " " + m.st.hint.Render("y / enter 종료  ·  n / esc 취소")
+		return " " + m.st.hint.Render("y / enter / ctrl+c 종료  ·  n / esc 취소")
 	}
 	if len(m.suggest) > 0 {
 		return " " + m.st.hint.Render("tab 완성  ·  ↑↓ 선택  ·  enter 실행")

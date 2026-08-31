@@ -119,6 +119,62 @@ func TestModelPickViaSuggest(t *testing.T) {
 	}
 }
 
+func TestCtrlCOpensQuit(t *testing.T) {
+	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
+	m.width, m.height = 80, 24
+	m.handleKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if m.overlay != overlayQuit {
+		t.Fatalf("ctrl+c should open quit, overlay=%d", m.overlay)
+	}
+}
+
+func TestCtrlCMatchesWhenTextIsC(t *testing.T) {
+	// Kitty-style events set Text, so String() is "c" not "ctrl+c".
+	msg := tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl, Text: "c"}
+	if msg.String() == "ctrl+c" {
+		t.Fatal("precondition: String() should not be ctrl+c when Text is set")
+	}
+	if !isCtrlC(msg) {
+		t.Fatalf("isCtrlC missed Text=c event; keystroke=%q string=%q", msg.Keystroke(), msg.String())
+	}
+	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
+	m.handleKey(msg)
+	if m.overlay != overlayQuit {
+		t.Fatalf("printable ctrl+c should still quit-confirm, overlay=%d", m.overlay)
+	}
+}
+
+func TestKeepCtrlCRewritesInterrupt(t *testing.T) {
+	msg := keepCtrlC(nil, tea.InterruptMsg{})
+	got, ok := msg.(tea.KeyPressMsg)
+	if !ok || !isCtrlC(got) {
+		t.Fatalf("InterruptMsg should become ctrl+c, got %#v", msg)
+	}
+}
+
+func TestCtrlCCancelsTurn(t *testing.T) {
+	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
+	canceled := false
+	m.busy = true
+	m.turnCancel = func() { canceled = true }
+	m.handleKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if !canceled {
+		t.Fatal("ctrl+c should cancel the running turn")
+	}
+	if m.overlay != overlayNone {
+		t.Fatalf("busy ctrl+c should not open quit, overlay=%d", m.overlay)
+	}
+}
+
+func TestSecondCtrlCQuits(t *testing.T) {
+	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
+	m.overlay = overlayQuit
+	_, cmd := m.handleKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	if cmd == nil {
+		t.Fatal("second ctrl+c should quit")
+	}
+}
+
 func TestPermPanelReplacesInput(t *testing.T) {
 	m := newModel(context.Background(), &agent.Agent{Cfg: config.Default()})
 	m.width, m.height = 80, 24

@@ -35,7 +35,7 @@ Tool 줄은 이름, 상세(명령·경로), 결과 요약(줄 수 등)을 보여
 | `tab` / `shift+tab` | slash command, model, effort 값 순환 |
 | `↑` `↓` | 제안 목록, 또는 prompt history |
 | `ctrl+j` | 줄바꿈 |
-| `ctrl+c` | 진행 중인 turn 취소. 대기 중이면 종료 확인 |
+| `ctrl+c` | 진행 중인 turn 취소. 대기 중이면 종료 확인. 확인 화면에서 한 번 더 누르면 종료 |
 | `ctrl+d` | 입력이 비어 있으면 종료 |
 | `ctrl+n` | 새 session (새 id와 prompt-cache key) |
 | `ctrl+o` | 접힌 reasoning 펼치기/접기 |
@@ -44,7 +44,7 @@ Tool 줄은 이름, 상세(명령·경로), 결과 요약(줄 수 등)을 보여
 | `?` | help를 transcript에 출력 (입력이 비어 있을 때) |
 | `esc` | 현재 panel 닫기 |
 
-첫 `ctrl+c`는 process를 죽이지 **않습니다**. Headless `-p`만 signal context를 씁니다. TUI는 쓰지 않아서 실수로 alt-screen이 깨지지 않습니다.
+첫 `ctrl+c`는 process를 죽이지 **않습니다**. 생성 중이면 turn만 취소하고, 대기 중이면 종료 확인을 엽니다. 확인에서 다시 `ctrl+c` / `y` / `enter`면 종료입니다. Headless `-p`만 signal context를 씁니다.
 
 ## Slash command
 

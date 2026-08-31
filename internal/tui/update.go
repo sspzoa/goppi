@@ -111,14 +111,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	k := msg.String()
+	k := keyStroke(msg)
 
 	if m.overlay != overlayNone {
-		return m.handleOverlayKey(k)
+		return m.handleOverlayKey(msg)
 	}
 
-	switch k {
-	case "ctrl+c":
+	if isCtrlC(msg) {
 		if m.busy {
 			if m.turnCancel != nil {
 				m.turnCancel()
@@ -128,6 +127,9 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.overlay = overlayQuit
 		m.input.Blur()
 		return m, nil
+	}
+
+	switch k {
 	case "ctrl+d":
 		if strings.TrimSpace(m.input.Value()) == "" && !m.busy {
 			return m, m.quit()
@@ -210,25 +212,45 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *model) handleOverlayKey(k string) (tea.Model, tea.Cmd) {
+func (m *model) handleOverlayKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	k := keyStroke(msg)
 	switch m.overlay {
 	case overlayQuit:
-		switch k {
-		case "y", "enter":
+		if isCtrlC(msg) || k == "y" || k == "enter" {
 			return m, m.quit()
-		case "n", "esc", "ctrl+c":
+		}
+		if k == "n" || k == "esc" {
 			m.overlay = overlayNone
 			_ = m.input.Focus()
 		}
 	case overlayPerm:
-		switch k {
-		case "y", "enter":
-			m.replyPerm(true)
-		case "n", "esc", "ctrl+c":
+		if isCtrlC(msg) || k == "n" || k == "esc" {
 			m.replyPerm(false)
+			break
+		}
+		if k == "y" || k == "enter" {
+			m.replyPerm(true)
 		}
 	}
 	return m, nil
+}
+
+// keyStroke is the v2-stable name for a shortcut. String() can be just
+// "c" when the terminal reports printable text for ctrl+c.
+func keyStroke(msg tea.KeyPressMsg) string {
+	if s := msg.Keystroke(); s != "" {
+		return s
+	}
+	return msg.String()
+}
+
+func isCtrlC(msg tea.KeyPressMsg) bool {
+	k := msg.Key()
+	if k.Mod.Contains(tea.ModCtrl) && (k.Code == 'c' || k.Code == 'C') {
+		return true
+	}
+	s := keyStroke(msg)
+	return s == "ctrl+c"
 }
 
 func (m *model) replyPerm(ok bool) {
