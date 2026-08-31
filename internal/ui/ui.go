@@ -14,7 +14,6 @@ func Err() io.Writer { return os.Stderr }
 
 func Banner(version, model, effort, workdir string) {
 	title := "고삐"
-	tag := "한국형"
 	meta := "v" + version
 	rows := [][2]string{
 		{"model", model},
@@ -22,7 +21,7 @@ func Banner(version, model, effort, workdir string) {
 		{"workdir", shortPath(workdir)},
 	}
 
-	inner := visibleLen(title) + 2 + visibleLen(tag) + 1 + visibleLen(meta)
+	inner := visibleLen(title) + 1 + visibleLen(meta)
 	for _, row := range rows {
 		inner = max(inner, 9+visibleLen(row[1]))
 	}
@@ -38,14 +37,13 @@ func Banner(version, model, effort, workdir string) {
 	mid := "├" + strings.Repeat("─", inner+2) + "┤"
 
 	fmt.Fprintln(Out(), Paint(Violet(), top))
-	left := title + "  " + tag
-	gap := inner - visibleLen(left) - visibleLen(meta)
+	gap := inner - visibleLen(title) - visibleLen(meta)
 	if gap < 1 {
 		gap = 1
 	}
 	fmt.Fprintf(Out(), "%s %s%s%s %s\n",
 		Paint(Violet(), "│"),
-		brand(title)+"  "+soft(tag),
+		brand(title),
 		pad(gap),
 		mute(meta),
 		Paint(Violet(), "│"),
@@ -200,11 +198,22 @@ func Help() {
 	fmt.Fprintln(Out(), mute("  명령"))
 	rows := [][2]string{
 		{"/help", "이 도움말 · tab 완성"},
-		{"/model [name]", "solar-pro4 · pro3 · pro2 · mini"},
+		{"/plan /act", "읽기 전용 계획 / 실행"},
+		{"/model [name]", "solar-pro4 또는 compat 모델 id"},
 		{"/effort [level]", "none · low · medium · high · max"},
+		{"/compact", "긴 세션 요약"},
+		{"/undo", "마지막 파일 수정 되돌리기"},
+		{"/diff", "이번 세션 파일 변경"},
+		{"/export", "세션 Markdown 내보내기"},
+		{"/copy", "마지막 답 클립보드"},
+		{"/retry", "마지막 프롬프트 다시 보내기"},
+		{"/jobs", "백그라운드 bash"},
+		{"/skills", "프로젝트 skill"},
+		{"/mcp", "설정된 MCP 서버"},
 		{"/new", "세션 초기화"},
 		{"/tools", "등록된 툴"},
-		{"/sessions", "최근 세션"},
+		{"/sessions [id]", "세션 목록 / 이어가기"},
+		{"/delete [id]", "세션 삭제 (없으면 지금)"},
 		{"/status", "현재 설정"},
 		{"/quit", "종료"},
 	}

@@ -16,10 +16,17 @@ const (
 type Message struct {
 	Role       Role
 	Content    string
-	Reasoning  string `json:"reasoning,omitempty"`
+	Reasoning  string  `json:"reasoning,omitempty"`
+	Images     []Image `json:"images,omitempty"`
 	ToolCalls  []ToolCall
 	ToolCallID string
 	ToolName   string
+}
+
+type Image struct {
+	Path string `json:"path,omitempty"`
+	MIME string `json:"mime,omitempty"`
+	URL  string `json:"-"`
 }
 
 type ToolCall struct {
@@ -35,9 +42,9 @@ type ToolSpec struct {
 }
 
 type Usage struct {
-	InputTokens     int
-	OutputTokens    int
-	ReasoningTokens int
+	InputTokens     int `json:"input_tokens"`
+	OutputTokens    int `json:"output_tokens"`
+	ReasoningTokens int `json:"reasoning_tokens"`
 }
 
 type Delta struct {

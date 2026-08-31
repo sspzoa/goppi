@@ -6,3 +6,11 @@ dist/
 *.test
 *.out
 vendor/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+credentials.json
+*.pem
+*.key

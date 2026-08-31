@@ -19,11 +19,23 @@ type Item struct {
 func SlashCmds() []Item {
 	return []Item{
 		{Name: "/help", Summary: "도움말"},
+		{Name: "/plan", Summary: "읽기 전용 계획 모드"},
+		{Name: "/act", Summary: "실행 모드"},
 		{Name: "/model", Summary: "모델", Arg: true},
 		{Name: "/effort", Summary: "reasoning 강도", Arg: true},
+		{Name: "/compact", Summary: "세션 요약"},
+		{Name: "/undo", Summary: "마지막 파일 수정 되돌리기"},
+		{Name: "/diff", Summary: "이번 세션 파일 변경"},
+		{Name: "/export", Summary: "세션 Markdown 내보내기"},
+		{Name: "/copy", Summary: "마지막 답 클립보드"},
+		{Name: "/retry", Summary: "마지막 프롬프트 다시 보내기"},
+		{Name: "/jobs", Summary: "백그라운드 bash"},
+		{Name: "/skills", Summary: "프로젝트 skill"},
+		{Name: "/mcp", Summary: "설정된 MCP 서버"},
 		{Name: "/new", Summary: "세션 초기화"},
 		{Name: "/tools", Summary: "등록된 툴"},
-		{Name: "/sessions", Summary: "최근 세션"},
+		{Name: "/sessions", Summary: "세션 이어가기", Arg: true},
+		{Name: "/delete", Summary: "세션 삭제", Arg: true},
 		{Name: "/status", Summary: "현재 설정"},
 		{Name: "/quit", Summary: "종료"},
 		{Name: "/clear", Summary: "세션 초기화", Alias: true},
@@ -44,6 +56,10 @@ func CLICommands() []Item {
 		{Name: "sessions", Summary: "세션 목록·관리"},
 		{Name: "export", Summary: "세션 Markdown 내보내기"},
 		{Name: "completions", Summary: "셸 자동완성 스크립트"},
+		{Name: "complete", Summary: "자동완성 이름 (내부)"},
+		{Name: "mcp", Summary: "설정된 MCP 서버"},
+		{Name: "worktree", Summary: "git worktree 목록·삭제"},
+		{Name: "acp", Summary: "Agent Client Protocol"},
 		{Name: "version", Summary: "버전"},
 		{Name: "help", Summary: "도움말"},
 	}
@@ -88,8 +104,15 @@ func Flags() []Item {
 		{Name: "--resume", Summary: "Resume session"},
 		{Name: "--max-turns", Summary: "Max agent turns"},
 		{Name: "--output-format", Summary: "plain | json"},
+		{Name: "--mode", Summary: "act | plan"},
+		{Name: "--provider", Summary: "upstage | openai | compat"},
 		{Name: "--always-approve", Summary: "Skip permission prompts"},
 		{Name: "--yolo", Summary: "Skip permission prompts"},
+		{Name: "--sandbox", Summary: "workspace | strict | off"},
+		{Name: "--worktree", Summary: "Isolate in a git worktree"},
+		{Name: "--fix", Summary: "Tighten open credentials"},
+		{Name: "--offline", Summary: "Save key without API probe"},
+		{Name: "--online", Summary: "Probe the stored API key"},
 		{Name: "-h", Summary: "Help"},
 		{Name: "--help", Summary: "Help"},
 		{Name: "-v", Summary: "Version"},
@@ -98,13 +121,22 @@ func Flags() []Item {
 }
 
 func SessionIDs() []string {
-	items, err := session.List()
+	items := Sessions()
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		out = append(out, it.Name)
+	}
+	return out
+}
+
+func Sessions() []Item {
+	files, err := session.List()
 	if err != nil {
 		return nil
 	}
-	out := make([]string, 0, len(items))
-	for _, f := range items {
-		out = append(out, f.ID)
+	out := make([]Item, 0, len(files))
+	for _, f := range files {
+		out = append(out, Item{Name: f.ID, Summary: session.SafeTitle(f.Title)})
 	}
 	return out
 }
@@ -134,6 +166,10 @@ func Query(line string) []Item {
 		return visible(Models(), arg, true)
 	case "/effort":
 		return visible(Efforts(), arg, true)
+	case "/sessions":
+		return visible(Sessions(), arg, true)
+	case "/delete":
+		return visible(Sessions(), arg, true)
 	default:
 		return nil
 	}
@@ -165,6 +201,9 @@ func Ready(line string) bool {
 		return len(Query(line)) == 0
 	}
 	if cmd.Arg {
+		if cmd.Name == "/delete" && len(fields) < 2 {
+			return true
+		}
 		// 인자가 필요한 명령은 인자를 골라야 실행할 수 있다.
 		if len(fields) < 2 {
 			return false

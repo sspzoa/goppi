@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/sspzoa/goppi/internal/config"
 	"github.com/sspzoa/goppi/internal/session"
+	"github.com/sspzoa/goppi/internal/tools"
 	"github.com/sspzoa/goppi/internal/ui"
+	"github.com/sspzoa/goppi/internal/worktree"
 )
 
 func cmdSessions(args []string) error {
@@ -20,10 +24,20 @@ func cmdSessions(args []string) error {
 		if len(args) < 2 {
 			return fmt.Errorf("usage: goppi sessions delete <id>")
 		}
-		if err := session.Delete(args[1]); err != nil {
+		f, err := session.Resolve(args[1])
+		if err != nil {
 			return err
 		}
-		ui.Info("deleted %s", args[1])
+		if cfg, err := config.Load(); err == nil {
+			_ = tools.FireSessionEnd(context.Background(), cfg, f.ID, "delete")
+		}
+		if err := session.Delete(f.ID); err != nil {
+			return err
+		}
+		if err := worktree.Remove(f.ID); err != nil {
+			ui.Warn("worktree: %s", err)
+		}
+		ui.Info("deleted %s", f.ID)
 		return nil
 	default:
 		return fmt.Errorf("usage: goppi sessions [list|delete <id>]")
@@ -56,7 +70,7 @@ func cmdExport(args []string) error {
 	if len(args) == 0 {
 		f, err = session.LoadLast()
 	} else {
-		f, err = session.Load(args[0])
+		f, err = session.Resolve(args[0])
 	}
 	if err != nil {
 		return err
@@ -73,6 +87,7 @@ func pad(s string, n int) string {
 }
 
 func dash(s string) string {
+	s = session.SafeTitle(s)
 	if s == "" {
 		return "-"
 	}

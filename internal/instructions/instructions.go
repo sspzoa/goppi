@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const maxBytes = 32 << 10
+
 var Names = []string{
 	"GOPPI.md",
 	"AGENTS.md",
@@ -27,7 +29,11 @@ func Load(workdir string) (text string, found []string) {
 		found = append(found, name)
 		parts = append(parts, body)
 	}
-	return strings.Join(parts, "\n\n"), found
+	text = strings.Join(parts, "\n\n")
+	if len(text) > maxBytes {
+		text = text[:maxBytes] + "\n… truncated"
+	}
+	return text, found
 }
 
 const Template = `# GOPPI.md

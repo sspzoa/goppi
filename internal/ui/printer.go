@@ -37,3 +37,7 @@ func (p *Printer) ToolDone(summary string, err error) {
 	}
 	ToolOK(summary)
 }
+
+func (p *Printer) Compacted() {
+	Info("세션을 자동 압축했습니다.")
+}
