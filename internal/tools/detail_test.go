@@ -9,6 +9,13 @@ func TestDetailBash(t *testing.T) {
 	}
 }
 
+func TestDetailDelegate(t *testing.T) {
+	got := Detail("delegate", []byte(`{"prompt":"find the main package"}`))
+	if got != "find the main package" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestDetailPath(t *testing.T) {
 	got := Detail("read_file", []byte(`{"path":"README.md"}`))
 	if got != "README.md" {

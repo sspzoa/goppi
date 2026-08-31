@@ -35,7 +35,7 @@ type solarStreamOpts struct {
 
 type solarMessage struct {
 	Role       string      `json:"role"`
-	Content    string      `json:"content,omitempty"`
+	Content    any         `json:"content,omitempty"`
 	ToolCalls  []solarCall `json:"tool_calls,omitempty"`
 	ToolCallID string      `json:"tool_call_id,omitempty"`
 	Name       string      `json:"name,omitempty"`
@@ -139,9 +139,9 @@ func toSolarMessages(system string, msgs []Message) []solarMessage {
 	for _, m := range msgs {
 		switch m.Role {
 		case RoleUser:
-			out = append(out, solarMessage{Role: "user", Content: m.Content})
+			out = append(out, solarMessage{Role: "user", Content: messageContent(m)})
 		case RoleAssistant:
-			om := solarMessage{Role: "assistant", Content: m.Content}
+			om := solarMessage{Role: "assistant", Content: messageContent(m)}
 			for _, tc := range m.ToolCalls {
 				call := solarCall{ID: tc.ID, Type: "function"}
 				call.Function.Name = tc.Name
@@ -155,11 +155,34 @@ func toSolarMessages(system string, msgs []Message) []solarMessage {
 		case RoleTool:
 			out = append(out, solarMessage{
 				Role:       "tool",
-				Content:    m.Content,
+				Content:    messageContent(m),
 				ToolCallID: m.ToolCallID,
 				Name:       m.ToolName,
 			})
 		}
 	}
 	return out
+}
+
+func messageContent(m Message) any {
+	if len(m.Images) == 0 {
+		return m.Content
+	}
+	var parts []map[string]any
+	if strings.TrimSpace(m.Content) != "" {
+		parts = append(parts, map[string]any{"type": "text", "text": m.Content})
+	}
+	for _, img := range m.Images {
+		if img.URL == "" {
+			continue
+		}
+		parts = append(parts, map[string]any{
+			"type":      "image_url",
+			"image_url": map[string]string{"url": img.URL},
+		})
+	}
+	if len(parts) == 0 {
+		return m.Content
+	}
+	return parts
 }

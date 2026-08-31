@@ -123,6 +123,9 @@ func (a *streamAcc) apply(raw []byte) error {
 	if c := ch.Delta.Content.String(); c != "" {
 		a.content.WriteString(c)
 	}
+	if a.tooLarge() {
+		return fmt.Errorf("stream too large")
+	}
 	for _, tc := range ch.Delta.ToolCalls {
 		if a.calls == nil {
 			a.calls = map[int]*accCall{}
@@ -140,7 +143,20 @@ func (a *streamAcc) apply(raw []byte) error {
 		}
 		call.args.WriteString(tc.Function.Arguments)
 	}
+	if a.tooLarge() {
+		return fmt.Errorf("stream too large")
+	}
 	return nil
+}
+
+func (a *streamAcc) tooLarge() bool {
+	n := a.content.Len() + a.reasoning.Len()
+	for _, c := range a.calls {
+		if c != nil {
+			n += c.args.Len()
+		}
+	}
+	return n > 8<<20
 }
 
 func (a *streamAcc) response() ChatResponse {

@@ -6,6 +6,7 @@ type Sink interface {
 	Usage(in, out, reason int)
 	ToolStart(name, detail string)
 	ToolDone(summary string, err error)
+	Compacted()
 }
 
 type nopSink struct{}
@@ -15,3 +16,4 @@ func (nopSink) TurnEnd()                 {}
 func (nopSink) Usage(int, int, int)      {}
 func (nopSink) ToolStart(string, string) {}
 func (nopSink) ToolDone(string, error)   {}
+func (nopSink) Compacted()               {}

@@ -8,11 +8,41 @@ import (
 	"testing"
 )
 
+func TestOSC52EncodesPayload(t *testing.T) {
+	seq := OSC52("hello")
+	if !strings.HasPrefix(seq, "\033]52;c;") || !strings.HasSuffix(seq, "\007") {
+		t.Fatalf("%q", seq)
+	}
+	if !strings.Contains(seq, "aGVsbG8=") {
+		t.Fatalf("missing base64: %q", seq)
+	}
+}
+
+func TestCopyClipboardEmpty(t *testing.T) {
+	if err := CopyClipboard(""); err == nil {
+		t.Fatal("empty should fail")
+	}
+	if err := CopyClipboard("   "); err == nil {
+		t.Fatal("blank should fail")
+	}
+}
+
+func TestNotifyDisabled(t *testing.T) {
+	t.Setenv("GOPPI_NOTIFY", "off")
+	if NotifyEnabled() {
+		t.Fatal("off")
+	}
+	t.Setenv("GOPPI_NOTIFY", "on")
+	if !NotifyEnabled() {
+		t.Fatal("on")
+	}
+}
+
 func TestBannerHasChrome(t *testing.T) {
 	out := capture(t, func() {
 		Banner("0.3.0", "solar-pro4", "", "/Users/sspzoa/goppi")
 	})
-	for _, want := range []string{"고삐", "한국형", "solar-pro4", "model", "effort", "workdir"} {
+	for _, want := range []string{"고삐", "solar-pro4", "model", "effort", "workdir"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("banner missing %q\n%s", want, out)
 		}

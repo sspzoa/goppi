@@ -10,6 +10,7 @@ import (
 
 type documentParse struct {
 	workdir string
+	root    *fileRoot
 	api     *upstage.Client
 }
 
@@ -22,7 +23,7 @@ func (documentParse) Spec() provider.ToolSpec {
 		Parameters: schema(`{
 			"type":"object",
 			"properties":{
-				"path":{"type":"string","description":"Document path, relative to workdir or absolute"},
+				"path":{"type":"string","description":"Document path inside workdir (relative or absolute)"},
 				"mode":{"type":"string","enum":["standard","enhanced","auto"],"description":"auto for mixed docs, enhanced for complex tables/charts, standard for text-heavy. Default auto"},
 				"ocr":{"type":"string","enum":["auto","force"],"description":"force for scans. Default auto"}
 			},
@@ -40,7 +41,7 @@ func (t documentParse) Run(ctx context.Context, input json.RawMessage) (string, 
 	if err != nil {
 		return "", err
 	}
-	path, err := resolve(t.workdir, args.Path)
+	path, err := scopedResolve(t.workdir, t.root, args.Path)
 	if err != nil {
 		return "", err
 	}
@@ -49,6 +50,7 @@ func (t documentParse) Run(ctx context.Context, input json.RawMessage) (string, 
 
 type documentOCR struct {
 	workdir string
+	root    *fileRoot
 	api     *upstage.Client
 }
 
@@ -61,7 +63,7 @@ func (documentOCR) Spec() provider.ToolSpec {
 		Parameters: schema(`{
 			"type":"object",
 			"properties":{
-				"path":{"type":"string","description":"Document path, relative to workdir or absolute"}
+				"path":{"type":"string","description":"Document path inside workdir (relative or absolute)"}
 			},
 			"required":["path"]
 		}`),
@@ -75,7 +77,7 @@ func (t documentOCR) Run(ctx context.Context, input json.RawMessage) (string, er
 	if err != nil {
 		return "", err
 	}
-	path, err := resolve(t.workdir, args.Path)
+	path, err := scopedResolve(t.workdir, t.root, args.Path)
 	if err != nil {
 		return "", err
 	}

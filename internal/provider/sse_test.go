@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -84,5 +85,34 @@ func TestStreamToolCalls(t *testing.T) {
 	}
 	if string(tc.Input) != `{"command":"ls"}` {
 		t.Fatalf("args = %s", tc.Input)
+	}
+}
+
+func TestStreamAccRejectsHuge(t *testing.T) {
+	var acc streamAcc
+	chunk, _ := json.Marshal(map[string]any{
+		"choices": []any{map[string]any{"delta": map[string]any{"content": strings.Repeat("x", 8<<20+1)}}},
+	})
+	if err := acc.apply(chunk); err == nil {
+		t.Fatal("expected stream too large")
+	}
+}
+
+func TestStreamAccRejectsHugeToolArgs(t *testing.T) {
+	var acc streamAcc
+	chunk, _ := json.Marshal(map[string]any{
+		"choices": []any{map[string]any{"delta": map[string]any{
+			"tool_calls": []any{map[string]any{
+				"index": 0,
+				"id":    "c1",
+				"function": map[string]any{
+					"name":      "write_file",
+					"arguments": `{"contents":"` + strings.Repeat("a", 8<<20+1) + `"}`,
+				},
+			}},
+		}}},
+	})
+	if err := acc.apply(chunk); err == nil || !strings.Contains(err.Error(), "stream too large") {
+		t.Fatalf("got %v", err)
 	}
 }

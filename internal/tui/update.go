@@ -9,9 +9,13 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/sspzoa/goppi/internal/agent"
 	"github.com/sspzoa/goppi/internal/complete"
 	"github.com/sspzoa/goppi/internal/session"
-	"github.com/sspzoa/goppi/internal/upstage"
+	"github.com/sspzoa/goppi/internal/skills"
+	"github.com/sspzoa/goppi/internal/tools"
+	"github.com/sspzoa/goppi/internal/ui"
+	"github.com/sspzoa/goppi/internal/worktree"
 )
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -32,6 +36,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = overlayPerm
 		m.perm = &msg
 		m.phase = msg.name
+		m.input.Blur()
+		return m, nil
+
+	case askUserMsg:
+		m.overlay = overlayAsk
+		m.askq = &msg
+		m.phase = "ask_user"
 		m.input.Blur()
 		return m, nil
 
@@ -56,32 +67,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.push(block{kind: kindTool, title: msg.name, body: msg.detail, state: "running"})
 		return m, nil
 
+	case compactMsg:
+		m.push(block{kind: kindSystem, body: "세션을 자동 압축했습니다."})
+		return m, nil
+
 	case toolDoneMsg:
 		if last := m.last(); last != nil && last.kind == kindTool {
 			if msg.err != nil {
 				last.state = "fail"
-				last.note = msg.err.Error()
+				last.note = tools.RedactSecrets(msg.err.Error())
 			} else {
 				last.state = "ok"
-				last.note = msg.summary
+				last.note = tools.RedactSecrets(msg.summary)
 			}
 		}
 		return m, nil
 
 	case doneMsg:
-		m.busy = false
-		m.phase = ""
-		m.turnCancel = nil
-		_ = m.input.Focus()
-		if msg.err != nil && !errors.Is(msg.err, context.Canceled) {
-			m.push(block{kind: kindError, body: msg.err.Error()})
-		} else if errors.Is(msg.err, context.Canceled) {
-			m.push(block{kind: kindSystem, body: "취소했습니다."})
-		}
-		if msg.save != nil {
-			m.push(block{kind: kindSystem, body: "세션 저장 실패: " + msg.save.Error()})
-		}
-		return m, nil
+		return m, m.finishTurn(msg)
 
 	case tea.MouseWheelMsg:
 		if m.overlay != overlayNone {
@@ -101,7 +104,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 	}
 
-	if m.overlay == overlayNone && !m.busy {
+	if m.overlay == overlayNone {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)
 		m.syncSuggest()
@@ -163,19 +166,12 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case "tab":
-		if !m.busy {
-			m.applySuggest(1)
-			return m, nil
-		}
+		m.applySuggest(1)
+		return m, nil
 	case "shift+tab":
-		if !m.busy {
-			m.applySuggest(-1)
-			return m, nil
-		}
+		m.applySuggest(-1)
+		return m, nil
 	case "enter":
-		if m.busy {
-			return m, nil
-		}
 		if len(m.suggest) > 0 && !complete.Ready(m.input.Value()) {
 			m.applySuggest(0)
 			// 선택으로 라인이 완성되면 enter 한 번으로 바로 실행한다.
@@ -203,13 +199,10 @@ func (m *model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if !m.busy {
-		var cmd tea.Cmd
-		m.input, cmd = m.input.Update(msg)
-		m.syncSuggest()
-		return m, cmd
-	}
-	return m, nil
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	m.syncSuggest()
+	return m, cmd
 }
 
 func (m *model) handleOverlayKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -224,15 +217,64 @@ func (m *model) handleOverlayKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			_ = m.input.Focus()
 		}
 	case overlayPerm:
-		if isCtrlC(msg) || k == "n" || k == "esc" {
-			m.replyPerm(false)
+		if isCtrlC(msg) {
+			m.replyPerm(tools.Denied)
+			if m.turnCancel != nil {
+				m.turnCancel()
+			}
+			break
+		}
+		if k == "n" || k == "esc" {
+			m.replyPerm(tools.Denied)
+			break
+		}
+		if k == "a" {
+			m.replyPerm(tools.AllowedSession)
 			break
 		}
 		if k == "y" || k == "enter" {
-			m.replyPerm(true)
+			m.replyPerm(tools.Allowed)
+		}
+	case overlayAsk:
+		if isCtrlC(msg) {
+			m.replyAsk("", fmt.Errorf("user skipped"))
+			if m.turnCancel != nil {
+				m.turnCancel()
+			}
+			break
+		}
+		if k == "n" || k == "esc" {
+			if m.askq != nil && len(m.askq.options) == 0 {
+				m.replyAsk("no", nil)
+			} else {
+				m.replyAsk("", fmt.Errorf("user skipped"))
+			}
+			break
+		}
+		if m.askq != nil && len(m.askq.options) == 0 && (k == "y" || k == "enter") {
+			m.replyAsk("yes", nil)
+			break
+		}
+		if m.askq != nil && len(k) == 1 && k[0] >= '1' && k[0] <= '8' {
+			i := int(k[0] - '1')
+			if i < len(m.askq.options) {
+				m.replyAsk(m.askq.options[i], nil)
+			}
 		}
 	}
 	return m, nil
+}
+
+func (m *model) replyAsk(text string, err error) {
+	if m.askq != nil && m.askq.reply != nil {
+		select {
+		case m.askq.reply <- askUserReply{text: text, err: err}:
+		default:
+		}
+	}
+	m.askq = nil
+	m.overlay = overlayNone
+	_ = m.input.Focus()
 }
 
 // keyStroke is the v2-stable name for a shortcut. String() can be just
@@ -253,20 +295,16 @@ func isCtrlC(msg tea.KeyPressMsg) bool {
 	return s == "ctrl+c"
 }
 
-func (m *model) replyPerm(ok bool) {
+func (m *model) replyPerm(v tools.Verdict) {
 	if m.perm != nil && m.perm.reply != nil {
 		select {
-		case m.perm.reply <- ok:
+		case m.perm.reply <- v:
 		default:
 		}
 	}
 	m.perm = nil
 	m.overlay = overlayNone
-	if m.busy {
-		m.input.Blur()
-	} else {
-		_ = m.input.Focus()
-	}
+	_ = m.input.Focus()
 }
 
 func (m *model) syncSuggest() {
@@ -313,6 +351,8 @@ func (m *model) applySuggest(dir int) {
 	m.syncSuggest()
 }
 
+const maxQueuedPrompts = 4
+
 func (m *model) submit() (tea.Model, tea.Cmd) {
 	text := strings.TrimSpace(m.input.Value())
 	if text == "" {
@@ -325,38 +365,101 @@ func (m *model) submit() (tea.Model, tea.Cmd) {
 	if strings.HasPrefix(text, "/") {
 		return m, m.runSlash(text)
 	}
+	if m.busy {
+		m.enqueue(text)
+		return m, nil
+	}
 	m.push(block{kind: kindUser, body: text})
 	m.stick = true
 	return m, m.startTurn(text)
 }
 
+func (m *model) enqueue(text string) {
+	if len(m.queue) >= maxQueuedPrompts {
+		m.push(block{kind: kindSystem, body: "대기열이 가득입니다 (4)"})
+		return
+	}
+	m.queue = append(m.queue, text)
+	m.push(block{kind: kindSystem, body: fmt.Sprintf("대기 %d  ·  %s", len(m.queue), firstLine(text))})
+}
+
+func (m *model) dropQueue() {
+	if len(m.queue) == 0 {
+		return
+	}
+	n := len(m.queue)
+	m.queue = nil
+	m.push(block{kind: kindSystem, body: fmt.Sprintf("대기 %d개를 버렸습니다.", n)})
+}
+
+func (m *model) kickQueue() tea.Cmd {
+	if len(m.queue) == 0 {
+		_ = m.input.Focus()
+		return nil
+	}
+	text := m.queue[0]
+	m.queue = append([]string(nil), m.queue[1:]...)
+	m.push(block{kind: kindUser, body: text})
+	m.stick = true
+	return m.startTurn(text)
+}
+
+func (m *model) finishTurn(msg doneMsg) tea.Cmd {
+	m.busy = false
+	m.phase = ""
+	m.turnCancel = nil
+	if msg.compact && msg.err == nil {
+		m.blocks = blocksFromMessages(m.agent.Messages)
+		m.push(block{kind: kindSystem, body: "세션을 압축했습니다."})
+	} else if msg.err != nil && !errors.Is(msg.err, context.Canceled) {
+		m.push(block{kind: kindError, body: msg.err.Error()})
+	} else if errors.Is(msg.err, context.Canceled) {
+		m.push(block{kind: kindSystem, body: "취소했습니다."})
+		m.dropQueue()
+		_ = m.input.Focus()
+		if msg.save != nil {
+			m.push(block{kind: kindSystem, body: "세션 저장 실패: " + msg.save.Error()})
+		}
+		return nil
+	}
+	ui.NotifyDone()
+	if msg.save != nil {
+		m.push(block{kind: kindSystem, body: "세션 저장 실패: " + msg.save.Error()})
+	}
+	return m.kickQueue()
+}
+
 func (m *model) startTurn(prompt string) tea.Cmd {
+	m.agent.EnsureSession()
 	turnCtx, cancel := context.WithCancel(m.ctx)
 	m.turnCancel = cancel
 	m.busy = true
 	m.phase = "생각 중"
-	m.input.Blur()
+	_ = m.input.Focus()
 	a := m.agent
+	end := m.trackWork()
 	return func() tea.Msg {
+		defer end()
 		err := a.Run(turnCtx, prompt)
-		var save error
-		if !errors.Is(err, context.Canceled) {
-			id, serr := session.Persist(a.Cfg, a.SessionID, a.Messages)
-			save = serr
-			if serr == nil {
-				a.SessionID = id
-			}
+		id, save := session.PersistFull(a.Cfg, a.SessionSnapshot())
+		if save == nil {
+			a.SessionID = id
 		}
 		return doneMsg{err: err, save: save}
 	}
 }
 
 func (m *model) quit() tea.Cmd {
+	if err := persistCurrent(m.agent); err != nil {
+		m.push(block{kind: kindError, body: "세션 저장 실패: " + err.Error()})
+	}
 	m.shutdown()
 	return tea.Quit
 }
 
 func (m *model) applyDelta(reasoning, content string) {
+	reasoning = tools.RedactSecrets(reasoning)
+	content = tools.RedactSecrets(content)
 	if reasoning != "" {
 		m.phase = "생각 중"
 		if last := m.last(); last != nil && last.kind == kindReason && last.live {
@@ -413,6 +516,10 @@ func (m *model) runSlash(line string) tea.Cmd {
 	fields := strings.Fields(line)
 	cmd := fields[0]
 	arg := strings.TrimSpace(strings.TrimPrefix(line, cmd))
+	if m.busy && !slashWhileBusy(cmd) {
+		m.push(block{kind: kindSystem, body: cmd + " 는 턴이 끝난 뒤에"})
+		return nil
+	}
 	switch cmd {
 	case "/help", "/?":
 		m.push(block{kind: kindSystem, body: helpText()})
@@ -425,7 +532,21 @@ func (m *model) runSlash(line string) tea.Cmd {
 	case "/tools":
 		m.push(block{kind: kindSystem, body: strings.Join(m.agent.Tools.Names(), "  ·  ")})
 	case "/sessions":
-		m.showSessions()
+		if arg == "" {
+			if len(complete.Sessions()) == 0 {
+				m.push(block{kind: kindSystem, body: "세션이 없습니다."})
+				return nil
+			}
+			m.startArgPick("/sessions ")
+			return nil
+		}
+		if m.busy {
+			m.push(block{kind: kindSystem, body: "/sessions 이어가기는 턴이 끝난 뒤에"})
+			return nil
+		}
+		m.loadSession(arg)
+	case "/delete":
+		m.deleteSession(arg)
 	case "/status":
 		m.showStatus()
 	case "/model":
@@ -440,6 +561,37 @@ func (m *model) runSlash(line string) tea.Cmd {
 			return nil
 		}
 		m.setEffort(arg)
+	case "/plan":
+		m.setMode("plan")
+	case "/act":
+		m.setMode("act")
+	case "/undo":
+		if m.agent.Tools == nil {
+			m.push(block{kind: kindError, body: "nothing to undo"})
+			return nil
+		}
+		msg, err := m.agent.Tools.UndoLast()
+		if err != nil {
+			m.push(block{kind: kindError, body: err.Error()})
+			return nil
+		}
+		m.push(block{kind: kindSystem, body: msg})
+	case "/compact":
+		return m.startCompact()
+	case "/skills":
+		m.showSkills()
+	case "/mcp":
+		m.showMCP()
+	case "/jobs":
+		m.showJobs()
+	case "/diff":
+		m.showDiff()
+	case "/export":
+		m.exportSession(arg)
+	case "/copy":
+		m.copyLast()
+	case "/retry":
+		return m.retryTurn()
 	default:
 		m.push(block{kind: kindSystem, body: "모르는 명령입니다. /help"})
 	}
@@ -447,12 +599,29 @@ func (m *model) runSlash(line string) tea.Cmd {
 }
 
 func (m *model) resetSession() {
+	if err := persistCurrent(m.agent); err != nil {
+		m.push(block{kind: kindError, body: "세션 저장 실패: " + err.Error()})
+		return
+	}
 	m.agent.Reset()
-	m.agent.SessionID = session.NewID()
 	m.agent.Cfg.PromptCacheKey = session.NewCacheKey()
+	m.agent.EnsureSession()
 	m.blocks = nil
 	m.inTok, m.outTok, m.reasonTok = 0, 0, 0
+	m.queue = nil
 	m.push(block{kind: kindSystem, body: "세션을 초기화했습니다. " + shortID(m.agent.SessionID)})
+}
+
+func persistCurrent(a *agent.Agent) error {
+	if a == nil || len(a.Messages) == 0 {
+		return nil
+	}
+	id, err := session.PersistFull(a.Cfg, a.SessionSnapshot())
+	if err != nil {
+		return fmt.Errorf("session save: %w", err)
+	}
+	a.SessionID = id
+	return nil
 }
 
 // startArgPick fills the input with a slash command prefix so the
@@ -477,6 +646,8 @@ func (m *model) preselectCurrent() {
 		current = m.agent.Cfg.Model
 	case "/effort":
 		current = m.agent.Cfg.ReasoningEffort
+	case "/sessions":
+		current = m.agent.SessionID
 	default:
 		return
 	}
@@ -500,6 +671,69 @@ func (m *model) setModel(id string) {
 	m.push(block{kind: kindSystem, body: "model → " + m.agent.Cfg.Model})
 }
 
+func (m *model) setMode(mode string) {
+	m.agent.Cfg.Mode = mode
+	if m.agent.Tools != nil {
+		m.agent.Tools.SetMode(mode)
+	}
+	m.push(block{kind: kindSystem, body: "mode → " + mode})
+}
+
+func (m *model) startCompact() tea.Cmd {
+	if m.busy {
+		return nil
+	}
+	m.busy = true
+	m.phase = "압축 중"
+	m.input.Blur()
+	end := m.trackWork()
+	return func() tea.Msg {
+		defer end()
+		err := m.agent.Compact(m.ctx)
+		var save error
+		if err == nil {
+			id, serr := session.PersistFull(m.agent.Cfg, m.agent.SessionSnapshot())
+			save = serr
+			if serr == nil {
+				m.agent.SessionID = id
+			}
+		}
+		return doneMsg{err: err, save: save, compact: true}
+	}
+}
+
+func (m *model) showMCP() {
+	configured := m.agent.Cfg.MCPNames()
+	var live []string
+	if m.agent.Tools != nil {
+		live = m.agent.Tools.MCPNames()
+	}
+	if len(configured) == 0 && len(live) == 0 {
+		m.push(block{kind: kindSystem, body: "mcp 없음. ~/.config/goppi/config.json 의 mcp_servers"})
+		return
+	}
+	var b strings.Builder
+	if len(configured) > 0 {
+		fmt.Fprintf(&b, "servers  %s", strings.Join(configured, ", "))
+	}
+	if len(live) > 0 {
+		if b.Len() > 0 {
+			b.WriteByte('\n')
+		}
+		fmt.Fprintf(&b, "tools    %s", strings.Join(live, ", "))
+	}
+	m.push(block{kind: kindSystem, body: b.String()})
+}
+
+func (m *model) showSkills() {
+	names := skills.Names(skills.Load(m.agent.Cfg.WorkDir))
+	if len(names) == 0 {
+		m.push(block{kind: kindSystem, body: "skill 없음. .goppi/skills/<name>/SKILL.md"})
+		return
+	}
+	m.push(block{kind: kindSystem, body: strings.Join(names, "  ·  ")})
+}
+
 func (m *model) setEffort(level string) {
 	if m.agent.Cfg.Model == "solar-mini" {
 		m.push(block{kind: kindSystem, body: "solar-mini 는 reasoning_effort 를 쓰지 않습니다"})
@@ -513,23 +747,149 @@ func (m *model) setEffort(level string) {
 	m.push(block{kind: kindSystem, body: "effort → " + m.agent.Cfg.ReasoningEffort})
 }
 
-func (m *model) showSessions() {
-	items, err := session.List()
+func (m *model) deleteSession(arg string) {
+	id := strings.TrimSpace(arg)
+	if id == "" {
+		id = m.agent.SessionID
+	} else {
+		f, err := session.Resolve(id)
+		if err != nil {
+			m.push(block{kind: kindError, body: err.Error()})
+			return
+		}
+		id = f.ID
+	}
+	if id == "" {
+		m.push(block{kind: kindSystem, body: "지울 세션이 없습니다."})
+		return
+	}
+	current := id == m.agent.SessionID
+	if current {
+		m.agent.End("delete")
+		m.agent.ReleaseSession()
+	} else {
+		_ = tools.FireSessionEnd(context.Background(), m.agent.Cfg, id, "delete")
+	}
+	if err := session.Delete(id); err != nil {
+		m.push(block{kind: kindError, body: err.Error()})
+		return
+	}
+	if err := worktree.Remove(id); err != nil {
+		m.push(block{kind: kindSystem, body: "worktree: " + err.Error()})
+	}
+	if !current {
+		m.push(block{kind: kindSystem, body: "세션을 지웠습니다. " + shortID(id)})
+		return
+	}
+	m.agent.Discard()
+	m.agent.Cfg.PromptCacheKey = session.NewCacheKey()
+	m.agent.EnsureSession()
+	m.blocks = nil
+	m.inTok, m.outTok, m.reasonTok = 0, 0, 0
+	m.queue = nil
+	m.push(block{kind: kindSystem, body: "세션을 지웠습니다. " + shortID(m.agent.SessionID)})
+}
+
+func (m *model) loadSession(id string) {
+	if err := persistCurrent(m.agent); err != nil {
+		m.push(block{kind: kindError, body: "세션 저장 실패: " + err.Error()})
+		return
+	}
+	f, err := session.Resolve(id)
 	if err != nil {
 		m.push(block{kind: kindError, body: err.Error()})
 		return
 	}
-	if len(items) == 0 {
-		m.push(block{kind: kindSystem, body: "세션이 없습니다."})
+	if err := m.agent.LoadFile(f); err != nil {
+		m.push(block{kind: kindError, body: err.Error()})
 		return
 	}
-	var b strings.Builder
-	limit := min(len(items), 8)
-	for i := 0; i < limit; i++ {
-		f := items[i]
-		fmt.Fprintf(&b, "%s  %s  %s\n", shortID(f.ID), f.UpdatedAt.Local().Format("01-02 15:04"), f.Title)
+	m.blocks = blocksFromMessages(m.agent.Messages)
+	m.inTok, m.outTok, m.reasonTok = m.agent.TotalUsage.InputTokens, m.agent.TotalUsage.OutputTokens, m.agent.TotalUsage.ReasoningTokens
+	m.queue = nil
+	m.stick = true
+	m.push(block{kind: kindSystem, body: fmt.Sprintf("세션을 이었습니다. %s · %d messages", shortID(m.agent.SessionID), len(m.agent.Messages))})
+}
+
+func compactLabel(on bool) string {
+	if on {
+		return "on"
 	}
-	m.push(block{kind: kindSystem, body: strings.TrimRight(b.String(), "\n")})
+	return "off"
+}
+
+func slashWhileBusy(cmd string) bool {
+	switch cmd {
+	case "/help", "/?", "/tools", "/sessions", "/status", "/jobs", "/diff", "/export", "/copy", "/mcp", "/skills", "/quit", "/exit", "/q":
+		return true
+	}
+	return false
+}
+
+func (m *model) jobCounts() (running, total int) {
+	if m.agent == nil || m.agent.Tools == nil {
+		return 0, 0
+	}
+	return m.agent.Tools.JobCounts()
+}
+
+func (m *model) showDiff() {
+	body := "(no edits)"
+	if m.agent != nil && m.agent.Tools != nil {
+		body = m.agent.Tools.SessionDiff()
+	}
+	m.push(block{kind: kindSystem, body: body})
+}
+
+func (m *model) retryTurn() tea.Cmd {
+	if m.agent == nil {
+		m.push(block{kind: kindError, body: "다시 보낼 메시지가 없습니다"})
+		return nil
+	}
+	text, err := m.agent.RewindLastUser()
+	if err != nil {
+		m.push(block{kind: kindError, body: err.Error()})
+		return nil
+	}
+	m.blocks = blocksFromMessages(m.agent.Messages)
+	m.push(block{kind: kindUser, body: text})
+	m.push(block{kind: kindSystem, body: "다시 보냅니다."})
+	m.stick = true
+	return m.startTurn(text)
+}
+
+func (m *model) copyLast() {
+	if m.agent == nil {
+		m.push(block{kind: kindError, body: "복사할 답이 없습니다"})
+		return
+	}
+	text := m.agent.LastAssistant()
+	if err := ui.CopyClipboard(text); err != nil {
+		m.push(block{kind: kindError, body: err.Error()})
+		return
+	}
+	m.push(block{kind: kindSystem, body: "클립보드에 복사했습니다."})
+}
+
+func (m *model) exportSession(arg string) {
+	if m.agent == nil {
+		m.push(block{kind: kindError, body: "내보낼 세션이 없습니다"})
+		return
+	}
+	path, err := m.agent.ExportMarkdown(arg)
+	if err != nil {
+		m.push(block{kind: kindError, body: err.Error()})
+		return
+	}
+	m.push(block{kind: kindSystem, body: "내보냄 " + path})
+}
+
+func (m *model) showJobs() {
+	body := "(no jobs)"
+	if m.agent != nil && m.agent.Tools != nil {
+		body = m.agent.Tools.JobSummary()
+	}
+	m.push(block{kind: kindSystem, body: body})
 }
 
 func (m *model) showStatus() {
@@ -537,11 +897,20 @@ func (m *model) showStatus() {
 	if m.agent.Cfg.Model == "solar-mini" {
 		effort = "n/a"
 	}
+	run, total := m.jobCounts()
+	u := m.agent.LastUsage
 	m.push(block{kind: kindSystem, body: fmt.Sprintf(
-		"%s  ·  %s  ·  %s  ·  session %s\n%s",
+		"%s  ·  %s  ·  %s  ·  sandbox %s  ·  worktree %v  ·  compact %s  ·  jobs %d/%d  ·  last %d→%d r%d  ·  Σ %d→%d  ·  %s  ·  session %s\n%s",
+		m.agent.Cfg.Mode,
 		m.agent.Cfg.Model,
 		effort,
-		upstage.DefaultBaseURL,
+		m.agent.Cfg.Sandbox,
+		m.agent.Cfg.Worktree,
+		compactLabel(m.agent.Cfg.AutoCompact),
+		run, total,
+		u.InputTokens, u.OutputTokens, u.ReasoningTokens,
+		m.inTok, m.outTok,
+		m.agent.Cfg.BaseURL,
 		shortID(m.agent.SessionID),
 		m.agent.Cfg.WorkDir,
 	)})

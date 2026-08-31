@@ -4,13 +4,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sspzoa/goppi/internal/config"
 	"github.com/sspzoa/goppi/internal/instructions"
 	"github.com/sspzoa/goppi/internal/ui"
 )
 
-func cmdInit() error {
-	cfg, err := config.Load()
+func cmdInit(args []string) error {
+	cfg, _, err := loadConfigWithWorkdirArgs(args)
 	if err != nil {
 		return err
 	}

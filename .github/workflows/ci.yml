@@ -5,15 +5,25 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.27"
-      - run: go test ./...
-      - run: go build -o goppi ./cmd/goppi
-      - run: ./goppi version
-      - run: ./goppi help
+      - name: release prepare
+        env:
+          GOPPI_DATA_DIR: ${{ runner.temp }}/goppi-smoke
+          GOPPI_INIT_DIR: ${{ runner.temp }}/goppi-init
+          UPSTAGE_API_KEY: ci-smoke
+          MOCK_SOLAR_PORT: "19876"
+        run: make release-prepare

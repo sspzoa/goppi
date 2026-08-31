@@ -36,20 +36,20 @@ func blocksFromMessages(msgs []provider.Message) []block {
 		switch msg.Role {
 		case provider.RoleUser:
 			if strings.TrimSpace(msg.Content) != "" {
-				out = append(out, block{kind: kindUser, body: msg.Content})
+				out = append(out, block{kind: kindUser, body: tools.RedactSecrets(msg.Content)})
 			}
 		case provider.RoleAssistant:
 			if strings.TrimSpace(msg.Reasoning) != "" {
-				out = append(out, block{kind: kindReason, body: msg.Reasoning})
+				out = append(out, block{kind: kindReason, body: tools.RedactSecrets(msg.Reasoning)})
 			}
 			if strings.TrimSpace(msg.Content) != "" {
-				out = append(out, block{kind: kindAssistant, body: msg.Content})
+				out = append(out, block{kind: kindAssistant, body: tools.RedactSecrets(msg.Content)})
 			}
 			for _, tc := range msg.ToolCalls {
 				out = append(out, block{
 					kind:  kindTool,
 					title: tc.Name,
-					body:  tools.Detail(tc.Name, tc.Input),
+					body:  tools.RedactSecrets(tools.Detail(tc.Name, tc.Input)),
 					state: "ok",
 				})
 			}
@@ -85,7 +85,6 @@ func renderWelcome(st styles, width, height int, model, effort, workdir string) 
 	}
 	lines := []string{
 		st.brand.Render("고삐"),
-		st.tag.Render("한국형 하네스"),
 		"",
 		st.mute.Render(model + " · " + effort),
 		st.mute.Render(workdir),
@@ -183,6 +182,18 @@ func indentWrap(style lipgloss.Style, text string, width int) string {
 		lines[i] = "  " + lines[i]
 	}
 	return strings.Join(lines, "\n")
+}
+
+func previewLines(s string, n int) []string {
+	s = strings.TrimRight(s, "\n")
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	lines := strings.Split(s, "\n")
+	if n > 0 && len(lines) > n {
+		return append(lines[:n], "…")
+	}
+	return lines
 }
 
 func firstLine(s string) string {

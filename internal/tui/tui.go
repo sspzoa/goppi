@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"strings"
 	"sync"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
@@ -17,6 +18,7 @@ import (
 	"github.com/sspzoa/goppi/internal/agent"
 	"github.com/sspzoa/goppi/internal/complete"
 	"github.com/sspzoa/goppi/internal/config"
+	"github.com/sspzoa/goppi/internal/tools"
 	"github.com/sspzoa/goppi/internal/ui"
 )
 
@@ -26,11 +28,23 @@ const (
 	overlayNone overlay = iota
 	overlayQuit
 	overlayPerm
+	overlayAsk
 )
 
 type permAskMsg struct {
 	name, detail string
-	reply        chan bool
+	reply        chan tools.Verdict
+}
+
+type askUserMsg struct {
+	question string
+	options  []string
+	reply    chan askUserReply
+}
+
+type askUserReply struct {
+	text string
+	err  error
 }
 
 type deltaMsg struct{ reasoning, content string }
@@ -41,7 +55,10 @@ type toolDoneMsg struct {
 	summary string
 	err     error
 }
-type doneMsg struct{ err, save error }
+type doneMsg struct {
+	err, save error
+	compact   bool
+}
 
 type model struct {
 	ctx        context.Context
@@ -50,6 +67,7 @@ type model struct {
 	closed     chan struct{}
 	closeOnce  sync.Once
 	turnCancel context.CancelFunc
+	turnDone   chan struct{}
 
 	width, height int
 	vpH           int
@@ -61,6 +79,7 @@ type model struct {
 	blocks  []block
 	overlay overlay
 	perm    *permAskMsg
+	askq    *askUserMsg
 
 	busy, stick, showReason  bool
 	phase                    string
@@ -68,6 +87,7 @@ type model struct {
 	hist                     []string
 	histIdx                  int
 	draft                    string
+	queue                    []string
 	status                   string
 	suggest                  []complete.Item
 	suggestIdx               int
@@ -78,10 +98,41 @@ func Run(ctx context.Context, a *agent.Agent) error {
 	p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithFilter(keepCtrlC))
 	m.program = p
 	a.Sink = &bridge{send: p.Send}
-	a.Tools.SetAsk(m.ask)
+	if a.Tools != nil {
+		a.Tools.SetAsk(m.ask)
+		a.Tools.SetAskUser(m.askUser)
+	}
 	_, err := p.Run()
-	m.shutdown()
+	if perr := m.finish(); perr != nil && err == nil {
+		err = perr
+	}
 	return err
+}
+
+// finish writes the in-memory transcript after the program exits.
+// /quit already persists; this covers SIGTERM/SIGHUP via tea.WithContext.
+// Cancel the in-flight turn first and wait so Persist sees the last messages.
+func (m *model) finish() error {
+	m.shutdown()
+	m.waitWork()
+	return persistCurrent(m.agent)
+}
+
+func (m *model) trackWork() func() {
+	done := make(chan struct{})
+	m.turnDone = done
+	return func() { close(done) }
+}
+
+func (m *model) waitWork() {
+	ch := m.turnDone
+	if ch == nil {
+		return
+	}
+	select {
+	case <-ch:
+	case <-time.After(10 * time.Second):
+	}
 }
 
 // keepCtrlC turns SIGINT into a key so the model can cancel a turn or
@@ -121,22 +172,31 @@ func newModel(ctx context.Context, a *agent.Agent) *model {
 	}
 
 	m := &model{
-		ctx:     ctx,
-		agent:   a,
-		closed:  make(chan struct{}),
-		st:      st,
-		vp:      vp,
-		input:   ta,
-		spin:    sp,
-		blocks:  blocksFromMessages(a.Messages),
-		stick:   true,
-		histIdx: -1,
+		ctx:       ctx,
+		agent:     a,
+		closed:    make(chan struct{}),
+		st:        st,
+		vp:        vp,
+		input:     ta,
+		spin:      sp,
+		blocks:    blocksFromMessages(a.Messages),
+		stick:     true,
+		histIdx:   -1,
+		inTok:     a.TotalUsage.InputTokens,
+		outTok:    a.TotalUsage.OutputTokens,
+		reasonTok: a.TotalUsage.ReasoningTokens,
 	}
 	if a.SessionID != "" && len(a.Messages) > 0 {
 		m.blocks = append([]block{{
 			kind: kindSystem,
 			body: fmt.Sprintf("세션 %s · %d messages", shortID(a.SessionID), len(a.Messages)),
 		}}, m.blocks...)
+	}
+	if a.Cfg.AlwaysApprove {
+		m.blocks = append(m.blocks, block{
+			kind: kindSystem,
+			body: "always_approve 켜짐 — write/bash/MCP를 묻지 않습니다",
+		})
 	}
 	return m
 }
@@ -202,14 +262,14 @@ func (m *model) render() string {
 }
 
 func (m *model) renderHeader() string {
-	left := m.st.brand.Render("고삐") + " " + m.st.tag.Render("한국형")
+	left := m.st.brand.Render("고삐")
 	right := m.st.mute.Render("v" + config.Version)
 
 	effort := m.agent.Cfg.ReasoningEffort
 	if m.agent.Cfg.Model == "solar-mini" {
 		effort = "n/a"
 	}
-	parts := []string{m.agent.Cfg.Model, effort, ui.ShortPath(m.agent.Cfg.WorkDir)}
+	parts := []string{m.agent.Cfg.Mode, m.agent.Cfg.Model, effort, ui.ShortPath(m.agent.Cfg.WorkDir)}
 	if m.agent.SessionID != "" {
 		parts = append(parts, shortID(m.agent.SessionID))
 	}
@@ -229,6 +289,8 @@ func (m *model) renderAction() string {
 	switch m.overlay {
 	case overlayPerm:
 		return m.renderPermPanel()
+	case overlayAsk:
+		return m.renderAskPanel()
 	case overlayQuit:
 		return m.renderQuitPanel()
 	}
@@ -245,6 +307,11 @@ func (m *model) renderInput() string {
 	}
 	m.input.SetHeight(h)
 	m.input.SetWidth(max(m.width-2, 10))
+	if m.busy {
+		m.input.Placeholder = "다음 메시지 · enter 대기열"
+	} else {
+		m.input.Placeholder = "메시지를 입력하세요"
+	}
 	border := colBrand
 	if m.busy {
 		border = colLine
@@ -272,9 +339,27 @@ func (m *model) renderPermPanel() string {
 	}
 	lines := []string{
 		m.st.warn.Render("툴 실행을 허용할까요?") + "  " + m.st.brand.Render(name),
+		m.st.mute.Render("y 한 번  ·  a 이번 세션"),
 	}
-	if d := firstLine(detail); d != "" {
+	for _, d := range previewLines(detail, 8) {
 		lines = append(lines, m.st.mute.Render(fit(d, max(m.width-6, 8))))
+	}
+	return m.panel(colWarn, lines...)
+}
+
+func (m *model) renderAskPanel() string {
+	q := ""
+	var opts []string
+	if m.askq != nil {
+		q, opts = m.askq.question, m.askq.options
+	}
+	lines := []string{m.st.warn.Render(fit(q, max(m.width-6, 8)))}
+	if len(opts) == 0 {
+		lines = append(lines, m.st.mute.Render("y 예  ·  n / esc 아니오"))
+	} else {
+		for i, o := range opts {
+			lines = append(lines, m.st.mute.Render(fmt.Sprintf("%d  %s", i+1, fit(o, max(m.width-8, 8)))))
+		}
 	}
 	return m.panel(colWarn, lines...)
 }
@@ -284,7 +369,7 @@ func (m *model) renderQuitPanel() string {
 }
 
 func (m *model) renderSuggest() string {
-	if m.overlay != overlayNone || m.busy || len(m.suggest) == 0 {
+	if m.overlay != overlayNone || len(m.suggest) == 0 {
 		return ""
 	}
 	const maxRows = 6
@@ -315,11 +400,23 @@ func (m *model) renderFooter() string {
 		return " " + m.st.warn.Render(m.status)
 	}
 	if m.busy && m.overlay == overlayNone {
-		return " " + m.spin.View() + " " + m.st.mute.Render(m.phaseLabel()+"   ctrl+c 취소")
+		hint := "enter 대기열  ·  ctrl+c 취소"
+		if n := len(m.queue); n > 0 {
+			hint = fmt.Sprintf("대기 %d  ·  enter 추가  ·  ctrl+c 취소", n)
+		}
+		if run, _ := m.jobCounts(); run > 0 {
+			hint = fmt.Sprintf("job %d  ·  %s", run, hint)
+		}
+		return " " + m.spin.View() + " " + m.st.mute.Render(m.phaseLabel()+"   "+hint)
 	}
 	switch m.overlay {
 	case overlayPerm:
-		return " " + m.st.hint.Render("y 허용  ·  n / esc 거부")
+		return " " + m.st.hint.Render("y 한 번  ·  a 세션  ·  n / esc 거부")
+	case overlayAsk:
+		if m.askq != nil && len(m.askq.options) > 0 {
+			return " " + m.st.hint.Render("1-8 선택  ·  n / esc 건너뛰기")
+		}
+		return " " + m.st.hint.Render("y 예  ·  n / esc 아니오")
 	case overlayQuit:
 		return " " + m.st.hint.Render("y / enter / ctrl+c 종료  ·  n / esc 취소")
 	}
@@ -339,12 +436,12 @@ func (m *model) phaseLabel() string {
 func helpText() string {
 	return strings.TrimSpace(`
 단축키
-  enter        보내기
+  enter        보내기. 생성 중이면 대기열
   tab          명령 자동완성
   ↑↓           제안 선택 / 입력 히스토리
   ctrl+j       줄바꿈
   ctrl+o       생각(reasoning) 펼치기/접기
-  ctrl+c       생성 취소 / 종료
+  ctrl+c       생성 취소(대기열도 버림) / 종료
   pgup pgdn    스크롤
   ctrl+l       맨 아래로
   ctrl+n       새 세션
@@ -352,11 +449,22 @@ func helpText() string {
 
 명령
   /help        도움말
+  /plan /act   모드 (읽기 전용 계획 / 실행)
   /model       모델
   /effort      reasoning 강도
+  /compact     긴 세션 요약
+  /undo        마지막 파일 수정 되돌리기
+  /diff        이번 세션 파일 변경
+  /export      세션 Markdown 내보내기
+  /copy        마지막 답 클립보드
+  /retry       마지막 프롬프트 다시 보내기
+  /jobs        백그라운드 bash
+  /skills      프로젝트 skill
+  /mcp         설정된 MCP 서버
   /new         세션 초기화
   /tools       등록된 툴
-  /sessions    최근 세션
+  /sessions    세션 이어가기
+  /delete      세션 삭제
   /status      현재 설정
   /quit        종료`)
 }
@@ -392,6 +500,9 @@ func (m *model) layout() {
 }
 
 func (m *model) push(bl block) {
+	bl.body = tools.RedactSecrets(bl.body)
+	bl.note = tools.RedactSecrets(bl.note)
+	bl.title = tools.RedactSecrets(bl.title)
 	m.blocks = append(m.blocks, bl)
 }
 
@@ -402,19 +513,35 @@ func (m *model) last() *block {
 	return &m.blocks[len(m.blocks)-1]
 }
 
-func (m *model) ask(name, detail string) bool {
-	reply := make(chan bool, 1)
+func (m *model) askUser(question string, options []string) (string, error) {
+	reply := make(chan askUserReply, 1)
 	if m.program == nil {
-		return false
+		return "", fmt.Errorf("no user to ask")
+	}
+	m.program.Send(askUserMsg{question: question, options: options, reply: reply})
+	select {
+	case r := <-reply:
+		return r.text, r.err
+	case <-m.ctx.Done():
+		return "", m.ctx.Err()
+	case <-m.closed:
+		return "", fmt.Errorf("user skipped")
+	}
+}
+
+func (m *model) ask(name, detail string) tools.Verdict {
+	reply := make(chan tools.Verdict, 1)
+	if m.program == nil {
+		return tools.Denied
 	}
 	m.program.Send(permAskMsg{name: name, detail: detail, reply: reply})
 	select {
-	case ok := <-reply:
-		return ok
+	case v := <-reply:
+		return v
 	case <-m.ctx.Done():
-		return false
+		return tools.Denied
 	case <-m.closed:
-		return false
+		return tools.Denied
 	}
 }
 
@@ -425,7 +552,13 @@ func (m *model) shutdown() {
 	}
 	if m.perm != nil && m.perm.reply != nil {
 		select {
-		case m.perm.reply <- false:
+		case m.perm.reply <- tools.Denied:
+		default:
+		}
+	}
+	if m.askq != nil && m.askq.reply != nil {
+		select {
+		case m.askq.reply <- askUserReply{err: fmt.Errorf("user skipped")}:
 		default:
 		}
 	}
@@ -462,4 +595,6 @@ func (b *bridge) ToolStart(name, detail string) {
 func (b *bridge) ToolDone(summary string, err error) {
 	b.send(toolDoneMsg{summary: summary, err: err})
 }
+func (b *bridge) Compacted() { b.send(compactMsg{}) }
 
+type compactMsg struct{}

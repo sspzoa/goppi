@@ -1,6 +1,14 @@
 {
   "model": "solar-pro4",
   "reasoning_effort": "medium",
+  "sandbox": "workspace",
   "max_turns": 30,
-  "max_tokens": 32768
+  "max_tokens": 32768,
+  "auto_compact": true,
+  "compact_at": 100000,
+  "hooks": {
+    "pre_tool": [],
+    "post_tool": [],
+    "session_start": []
+  }
 }

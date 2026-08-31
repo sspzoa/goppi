@@ -47,6 +47,7 @@ _goppi() {
   case ${words[CURRENT-1]} in
     -m|--model) _values 'model' $models; return ;;
     --effort) _values 'effort' $efforts; return ;;
+    --sandbox) _values 'sandbox' workspace strict off; return ;;
     --output-format) _values 'format' $formats; return ;;
     -C|--cwd) _files -/ ; return ;;
     -r|--resume) _goppi_sessions; return ;;
@@ -64,6 +65,8 @@ _goppi() {
     completions) _values 'shell' %s ;;
     inspect) _values 'flag' --json ;;
     login) _values 'flag' --stdin ;;
+    mcp) _values 'mcp' list tools ;;
+    worktree) _values 'worktree' list remove ;;
     complete) _values 'kind' commands models efforts sessions formats shells flags slash ;;
   esac
 }
@@ -87,6 +90,7 @@ func bashScript() string {
   case "$prev" in
     -m|--model) COMPREPLY=( $(compgen -W "%s" -- "$cur") ); return ;;
     --effort) COMPREPLY=( $(compgen -W "%s" -- "$cur") ); return ;;
+    --sandbox) COMPREPLY=( $(compgen -W "workspace strict off" -- "$cur") ); return ;;
     --output-format) COMPREPLY=( $(compgen -W "%s" -- "$cur") ); return ;;
     -C|--cwd) COMPREPLY=( $(compgen -d -- "$cur") ); return ;;
     -r|--resume|export) COMPREPLY=( $(compgen -W "$(goppi complete sessions 2>/dev/null)" -- "$cur") ); return ;;
@@ -107,6 +111,8 @@ func bashScript() string {
       ;;
     inspect) COMPREPLY=( $(compgen -W "--json" -- "$cur") ) ;;
     login) COMPREPLY=( $(compgen -W "--stdin" -- "$cur") ) ;;
+    mcp) COMPREPLY=( $(compgen -W "list tools" -- "$cur") ) ;;
+    worktree) COMPREPLY=( $(compgen -W "list remove" -- "$cur") ) ;;
   esac
 }
 complete -F _goppi goppi
@@ -128,11 +134,15 @@ func fishScript() string {
 	fmt.Fprintf(&b, "complete -c goppi -l max-turns -d 'Max agent turns'\n")
 	fmt.Fprintf(&b, "complete -c goppi -l output-format -xa '%s' -d 'Output format'\n", joinNames(Formats()))
 	fmt.Fprintf(&b, "complete -c goppi -l always-approve -l yolo -d 'Skip permission prompts'\n")
+	fmt.Fprintf(&b, "complete -c goppi -l sandbox -xa 'workspace strict off' -d 'Bash sandbox'\n")
 	fmt.Fprintf(&b, "complete -c goppi -n '__fish_seen_subcommand_from sessions' -a 'list delete'\n")
 	fmt.Fprintf(&b, "complete -c goppi -n '__fish_seen_subcommand_from export' -xa '(goppi complete sessions 2>/dev/null)'\n")
 	fmt.Fprintf(&b, "complete -c goppi -n '__fish_seen_subcommand_from completions' -a '%s'\n", joinNames(Shells()))
 	fmt.Fprintf(&b, "complete -c goppi -n '__fish_seen_subcommand_from inspect' -l json\n")
 	fmt.Fprintf(&b, "complete -c goppi -n '__fish_seen_subcommand_from login' -l stdin\n")
+	fmt.Fprintf(&b, "complete -c goppi -n '__fish_seen_subcommand_from mcp' -a 'list tools'\n")
+	fmt.Fprintf(&b, "complete -c goppi -l worktree -d 'Isolate in a git worktree'\n")
+	fmt.Fprintf(&b, "complete -c goppi -n '__fish_seen_subcommand_from worktree' -a 'list remove'\n")
 	return b.String()
 }
 
